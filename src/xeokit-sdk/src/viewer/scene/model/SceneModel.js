@@ -2950,14 +2950,14 @@ export class SceneModel extends Component {
                 }
 
                 // @reviser lijuhong 解压normalsCompressed以获得normals
-                if (!cfg.normals && cfg.normalsCompressed) {
+                if (!cfg.normals && cfg.normalsCompressed && cfg.normalsCompressed.length > 0) {
                     const lenCompressed = cfg.normalsCompressed.length;
                     const lenDecompressed = lenCompressed + (lenCompressed / 2); // 2 -> 3
                     const normals = new Float32Array(lenDecompressed);
                     cfg.normals = geometryCompressionUtils.decompressNormals(cfg.normalsCompressed, normals);
                 }
                 // @reviser lijuhong 解压uvCompressed以获得uv
-                if (!cfg.uv && cfg.uvCompressed) {
+                if (!cfg.uv && cfg.uvCompressed && cfg.uvCompressed.length > 0) {
                     cfg.uv = geometryCompressionUtils.decompressUVs(cfg.uvCompressed, cfg.uvDecodeMatrix);
                 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@lijuhong1981/xktloader",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "",
   "main": "dist/xktloader.js",
   "module": "dist/xktloader.esm.js",
