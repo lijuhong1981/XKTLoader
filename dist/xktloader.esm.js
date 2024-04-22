@@ -12403,6 +12403,8 @@ class SceneModel extends Component {
             math.expandAABB3Points3(aabb, cfg.positionsCompressed);
             geometryCompressionUtils.decompressAABB(aabb, cfg.positionsDecodeMatrix);
             cfg.aabb = aabb;
+            // @reviser lijuhong 解压positionsCompressed以获得positions
+            cfg.positions = geometryCompressionUtils.decompressPositions(cfg.positionsCompressed, cfg.positionsDecodeMatrix, new Float64Array(cfg.positionsCompressed.length));
         } else if (cfg.buckets) {
             const aabb = math.collapseAABB3();
             this._dtxBuckets[cfg.id] = cfg.buckets;
@@ -12412,6 +12414,8 @@ class SceneModel extends Component {
                     math.expandAABB3Points3(aabb, bucket.positions);
                 } else if (bucket.positionsCompressed) {
                     math.expandAABB3Points3(aabb, bucket.positionsCompressed);
+                    // @reviser lijuhong 解压positionsCompressed以获得positions
+                    bucket.positions = geometryCompressionUtils.decompressPositions(bucket.positionsCompressed, cfg.positionsDecodeMatrix, new Float64Array(bucket.positionsCompressed.length));
                 }
             }
             if (cfg.positionsDecodeMatrix) {
@@ -12444,6 +12448,8 @@ class SceneModel extends Component {
         } else if (cfg.uvCompressed) {
             cfg.uvCompressed = new Uint16Array(cfg.uvCompressed);
             cfg.uvDecodeMatrix = new Float64Array(cfg.uvDecodeMatrix);
+            // @reviser lijuhong 解压uvCompressed以获得uv
+            cfg.uv = geometryCompressionUtils.decompressUVs(cfg.uvCompressed, cfg.uvDecodeMatrix);
         }
         if (cfg.normals) { // HACK
             cfg.normals = null;
@@ -13560,7 +13566,8 @@ class SceneModel extends Component {
             const layer = this.layerList[i];
             layer.finalize();
         }
-        this._geometries = {};
+        // @reivser lijuhong 注释掉释放_geometries代码
+        // this._geometries = {};
         this._dtxBuckets = {};
         // @reivser lijuhong 注释掉释放_textures、_textureSets代码
         // this._textures = {};
