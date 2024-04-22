@@ -83,7 +83,8 @@ export class SceneModelMesh {
         /**
          * @private
          */
-        this.layer = layer;
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer = layer;
 
         /**
          * @private
@@ -120,7 +121,8 @@ export class SceneModelMesh {
 
     _sceneModelDirty() {
         this._aabbWorldDirty = true;
-        this.layer.aabbDirty = true;
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.aabbDirty = true;
     }
 
     _transformDirty() {
@@ -130,41 +132,47 @@ export class SceneModelMesh {
             this._matrixUpdateScheduled = true;
         }
         this._aabbWorldDirty = true;
-        this.layer.aabbDirty = true;
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.aabbDirty = true;
         if (this.entity) {
             this.entity._transformDirty();
         }
     }
 
     _updateMatrix() {
-        if (this.transform && this._matrixDirty) {
-            this.layer.setMatrix(this.portionId, this.transform.worldMatrix);
-        }
+        // @reviser lijuhong 注释layer相关代码
+        // if (this.transform && this._matrixDirty) {
+        //     this.layer.setMatrix(this.portionId, this.transform.worldMatrix);
+        // }
         this._matrixDirty = false;
         this._matrixUpdateScheduled = false;
     }
 
     _finalize(entityFlags) {
-        this.layer.initFlags(this.portionId, entityFlags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.initFlags(this.portionId, entityFlags, this._transparent);
     }
 
     _finalize2() {
-        if (this.layer.flushInitFlags) {
-            this.layer.flushInitFlags();
-        }
+        // @reviser lijuhong 注释layer相关代码
+        // if (this.layer.flushInitFlags) {
+        //     this.layer.flushInitFlags();
+        // }
     }
 
     _setVisible(entityFlags) {
-        this.layer.setVisible(this.portionId, entityFlags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setVisible(this.portionId, entityFlags, this._transparent);
     }
 
     _setColor(color) {
         this._color[0] = color[0];
         this._color[1] = color[1];
         this._color[2] = color[2];
-        if (!this._colorizing) {
-            this.layer.setColor(this.portionId, this._color, false);
-        }
+        // @reviser lijuhong 注释layer相关代码
+        // if (!this._colorizing) {
+        //     this.layer.setColor(this.portionId, this._color, false);
+        // }
     }
 
     _setColorize(colorize) {
@@ -173,10 +181,12 @@ export class SceneModelMesh {
             this._colorize[0] = colorize[0];
             this._colorize[1] = colorize[1];
             this._colorize[2] = colorize[2];
-            this.layer.setColor(this.portionId, this._colorize, setOpacity);
+            // @reviser lijuhong 注释layer相关代码
+            // this.layer.setColor(this.portionId, this._colorize, setOpacity);
             this._colorizing = true;
         } else {
-            this.layer.setColor(this.portionId, this._color, setOpacity);
+            // @reviser lijuhong 注释layer相关代码
+            // this.layer.setColor(this.portionId, this._color, setOpacity);
             this._colorizing = false;
         }
     }
@@ -188,50 +198,60 @@ export class SceneModelMesh {
         this._color[3] = opacity;
         this._colorize[3] = opacity;
         this._transparent = newTransparent;
-        if (this._colorizing) {
-            this.layer.setColor(this.portionId, this._colorize);
-        } else {
-            this.layer.setColor(this.portionId, this._color);
-        }
-        if (changingTransparency) {
-            this.layer.setTransparent(this.portionId, entityFlags, newTransparent);
-        }
+        // @reviser lijuhong 注释layer相关代码
+        // if (this._colorizing) {
+        //     this.layer.setColor(this.portionId, this._colorize);
+        // } else {
+        //     this.layer.setColor(this.portionId, this._color);
+        // }
+        // if (changingTransparency) {
+        //     this.layer.setTransparent(this.portionId, entityFlags, newTransparent);
+        // }
     }
 
     _setOffset(offset) {
-        this.layer.setOffset(this.portionId, offset);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setOffset(this.portionId, offset);
     }
 
     _setHighlighted(entityFlags) {
-        this.layer.setHighlighted(this.portionId, entityFlags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setHighlighted(this.portionId, entityFlags, this._transparent);
     }
 
     _setXRayed(entityFlags) {
-        this.layer.setXRayed(this.portionId, entityFlags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setXRayed(this.portionId, entityFlags, this._transparent);
     }
 
     _setSelected(entityFlags) {
-        this.layer.setSelected(this.portionId, entityFlags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setSelected(this.portionId, entityFlags, this._transparent);
     }
 
     _setEdges(entityFlags) {
-        this.layer.setEdges(this.portionId, entityFlags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setEdges(this.portionId, entityFlags, this._transparent);
     }
 
     _setClippable(entityFlags) {
-        this.layer.setClippable(this.portionId, entityFlags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setClippable(this.portionId, entityFlags, this._transparent);
     }
 
     _setCollidable(entityFlags) {
-        this.layer.setCollidable(this.portionId, entityFlags);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setCollidable(this.portionId, entityFlags);
     }
 
     _setPickable(flags) {
-        this.layer.setPickable(this.portionId, flags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setPickable(this.portionId, flags, this._transparent);
     }
 
     _setCulled(flags) {
-        this.layer.setCulled(this.portionId, flags, this._transparent);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.setCulled(this.portionId, flags, this._transparent);
     }
 
     /**
@@ -259,7 +279,8 @@ export class SceneModelMesh {
      * @private
      */
     precisionRayPickSurface(worldRayOrigin, worldRayDir, worldSurfacePos, worldSurfaceNormal) {
-        return this.layer.precisionRayPickSurface ? this.layer.precisionRayPickSurface(this.portionId, worldRayOrigin, worldRayDir, worldSurfacePos, worldSurfaceNormal) : false;
+        // @reviser lijuhong 注释layer相关代码
+        // return this.layer.precisionRayPickSurface ? this.layer.precisionRayPickSurface(this.portionId, worldRayOrigin, worldRayDir, worldSurfacePos, worldSurfaceNormal) : false;
     }
 
     /**
@@ -294,7 +315,8 @@ export class SceneModelMesh {
      * @private
      */
     getEachVertex(callback) {
-        this.layer.getEachVertex(this.portionId, callback);
+        // @reviser lijuhong 注释layer相关代码
+        // this.layer.getEachVertex(this.portionId, callback);
     }
 
     /**
