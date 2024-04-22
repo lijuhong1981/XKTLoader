@@ -8583,7 +8583,8 @@ class SceneModelEntity {
         /**
          * The {@link Scene} to which this SceneModelEntity belongs.
          */
-        this.scene = model.scene;
+        // @reviser lijuhong 注释scene相关代码
+        // this.scene = model.scene;
 
         /**
          * The {@link SceneModel} to which this SceneModelEntity belongs.
@@ -8630,9 +8631,10 @@ class SceneModelEntity {
         this._culledVFC = false;
         this._culledLOD = false;
 
-        if (this._isObject) {
-            model.scene._registerObject(this);
-        }
+        // @reviser lijuhong 注释scene相关代码
+        // if (this._isObject) {
+        //     model.scene._registerObject(this);
+        // }
     }
 
     _transformDirty() {
@@ -8755,9 +8757,10 @@ class SceneModelEntity {
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._setVisible(this._flags);
         }
-        if (this._isObject) {
-            this.model.scene._objectVisibilityUpdated(this);
-        }
+        // @reviser lijuhong 注释scene相关代码
+        // if (this._isObject) {
+        //     this.model.scene._objectVisibilityUpdated(this);
+        // }
         this.model.glRedraw();
     }
 
@@ -8794,9 +8797,10 @@ class SceneModelEntity {
         for (var i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._setHighlighted(this._flags);
         }
-        if (this._isObject) {
-            this.model.scene._objectHighlightedUpdated(this);
-        }
+        // @reviser lijuhong 注释scene相关代码
+        // if (this._isObject) {
+        //     this.model.scene._objectHighlightedUpdated(this);
+        // }
         this.model.glRedraw();
     }
 
@@ -8832,9 +8836,10 @@ class SceneModelEntity {
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._setXRayed(this._flags);
         }
-        if (this._isObject) {
-            this.model.scene._objectXRayedUpdated(this);
-        }
+        // @reviser lijuhong 注释scene相关代码
+        // if (this._isObject) {
+        //     this.model.scene._objectXRayedUpdated(this);
+        // }
         this.model.glRedraw();
     }
 
@@ -8870,9 +8875,10 @@ class SceneModelEntity {
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._setSelected(this._flags);
         }
-        if (this._isObject) {
-            this.model.scene._objectSelectedUpdated(this);
-        }
+        // @reviser lijuhong 注释scene相关代码
+        // if (this._isObject) {
+        //     this.model.scene._objectSelectedUpdated(this);
+        // }
         this.model.glRedraw();
     }
 
@@ -9097,7 +9103,8 @@ class SceneModelEntity {
         }
         if (this._isObject) {
             const colorized = (!!color);
-            this.scene._objectColorizeUpdated(this, colorized);
+            // @reviser lijuhong 注释scene相关代码
+            // this.scene._objectColorizeUpdated(this, colorized);
             this._colorizeUpdated = colorized;
         }
         this.model.glRedraw();
@@ -9152,7 +9159,8 @@ class SceneModelEntity {
             this.meshes[i]._setOpacity(opacityQuantized, this._flags);
         }
         if (this._isObject) {
-            this.scene._objectOpacityUpdated(this, opacityUpdated);
+            // @reviser lijuhong 注释scene相关代码
+            // this.scene._objectOpacityUpdated(this, opacityUpdated);
             this._opacityUpdated = opacityUpdated;
         }
         this.model.glRedraw();
@@ -9191,8 +9199,9 @@ class SceneModelEntity {
         }
         this._aabbDirty  = true;
         this.model._aabbDirty = true;
-        this.scene._aabbDirty = true;
-        this.scene._objectOffsetUpdated(this, offset);
+        // @reviser lijuhong 注释scene相关代码
+        // this.scene._aabbDirty = true;
+        // this.scene._objectOffsetUpdated(this, offset);
         this.model.glRedraw();
     }
 
@@ -9211,21 +9220,22 @@ class SceneModelEntity {
     }
 
     _finalize() {
-        const scene = this.model.scene;
-        if (this._isObject) {
-            if (this.visible) {
-                scene._objectVisibilityUpdated(this);
-            }
-            if (this.highlighted) {
-                scene._objectHighlightedUpdated(this);
-            }
-            if (this.xrayed) {
-                scene._objectXRayedUpdated(this);
-            }
-            if (this.selected) {
-                scene._objectSelectedUpdated(this);
-            }
-        }
+        // @reviser lijuhong 注释scene相关代码
+        // const scene = this.model.scene;
+        // if (this._isObject) {
+        //     if (this.visible) {
+        //         scene._objectVisibilityUpdated(this);
+        //     }
+        //     if (this.highlighted) {
+        //         scene._objectHighlightedUpdated(this);
+        //     }
+        //     if (this.xrayed) {
+        //         scene._objectXRayedUpdated(this);
+        //     }
+        //     if (this.selected) {
+        //         scene._objectSelectedUpdated(this);
+        //     }
+        // }
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._finalize(this._flags);
         }
@@ -9238,35 +9248,37 @@ class SceneModelEntity {
     }
 
     _destroy() {
-        const scene = this.model.scene;
-        if (this._isObject) {
-            scene._deregisterObject(this);
-            if (this.visible) {
-                scene._deRegisterVisibleObject(this);
-            }
-            if (this.xrayed) {
-                scene._deRegisterXRayedObject(this);
-            }
-            if (this.selected) {
-                scene._deRegisterSelectedObject(this);
-            }
-            if (this.highlighted) {
-                scene._deRegisterHighlightedObject(this);
-            }
-            if (this._colorizeUpdated) {
-                this.scene._deRegisterColorizedObject(this);
-            }
-            if (this._opacityUpdated) {
-                this.scene._deRegisterOpacityObject(this);
-            }
-            if (this._offset && (this._offset[0] !== 0 || this._offset[1] !== 0 || this._offset[2] !== 0)) {
-                this.scene._deRegisterOffsetObject(this);
-            }
-        }
+        // @reviser lijuhong 注释scene相关代码
+        // const scene = this.model.scene;
+        // if (this._isObject) {
+        //     scene._deregisterObject(this);
+        //     if (this.visible) {
+        //         scene._deRegisterVisibleObject(this);
+        //     }
+        //     if (this.xrayed) {
+        //         scene._deRegisterXRayedObject(this);
+        //     }
+        //     if (this.selected) {
+        //         scene._deRegisterSelectedObject(this);
+        //     }
+        //     if (this.highlighted) {
+        //         scene._deRegisterHighlightedObject(this);
+        //     }
+        //     if (this._colorizeUpdated) {
+        //         this.scene._deRegisterColorizedObject(this);
+        //     }
+        //     if (this._opacityUpdated) {
+        //         this.scene._deRegisterOpacityObject(this);
+        //     }
+        //     if (this._offset && (this._offset[0] !== 0 || this._offset[1] !== 0 || this._offset[2] !== 0)) {
+        //         this.scene._deRegisterOffsetObject(this);
+        //     }
+        // }
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._destroy();
         }
-        scene._aabbDirty = true;
+        // @reviser lijuhong 注释scene相关代码
+        // scene._aabbDirty = true;
     }
 }
 
