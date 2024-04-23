@@ -9739,7 +9739,7 @@
         _addChildTransform(childTransform) {
             this._childTransforms.push(childTransform);
             childTransform._parentTransform = this;
-            childTransform._setWorldMatrixDirty();
+            childTransform._transformDirty();
             childTransform._setAABBDirty();
         }
 
@@ -11170,6 +11170,7 @@
             this._enableIndexBucketing = false; // Until fixed: https://github.com/xeokit/xeokit-sdk/issues/1204
 
             this._vboBatchingLayerScratchMemory = getScratchMemory();
+            // @reviser lijuhong 注释scene相关代码
             // this._textureTranscoder = cfg.textureTranscoder || getKTX2TextureTranscoder(this.scene.viewer);
 
             this._maxGeometryBatchSize = cfg.maxGeometryBatchSize;
@@ -11324,7 +11325,7 @@
             //     }
             // });
 
-            // @reviser lijuhong 注释scene相关代码
+            // @reviser lijuhong 注释Texture2D相关代码
             // this._createDefaultTextureSet();
 
             this.visible = cfg.visible;
@@ -11347,7 +11348,7 @@
             this._meshesWithDirtyMatrices[this._numMeshesWithDirtyMatrices++] = mesh;
         }
 
-        // @reviser lijuhong 注释scene相关代码
+        // @reviser lijuhong 注释Texture2D相关代码
         /* _createDefaultTextureSet() {
             // Every SceneModelMesh gets at least the default TextureSet,
             // which contains empty default textures filled with color
@@ -12536,7 +12537,7 @@
                 this.error("[createTexture] Unsupported value for 'encoding' - supported values are LinearEncoding and sRGBEncoding. Defaulting to LinearEncoding.");
                 encoding = LinearEncoding;
             }
-            // @reivser lijuhong 注释掉Texture2D相关代码
+            // @reivser lijuhong 注释Texture2D相关代码
             // const texture = new Texture2D({
             //     gl: this.scene.canvas.gl,
             //     minFilter,
@@ -12739,7 +12740,7 @@
             const transform = new SceneModelTransform({
                 id: cfg.id,
                 model: this,
-                parentTransform,
+                parent: parentTransform,
                 matrix: cfg.matrix,
                 position: cfg.position,
                 scale: cfg.scale,
@@ -13146,7 +13147,7 @@
             // cfg.pickColor = new Uint8Array([r, g, b, a]); // Quantized pick color
             cfg.solid = (cfg.primitive === "solid");
             mesh.origin = math.vec3(cfg.origin);
-            // @reviser lijuhong 注释创建layer代码
+            // @reviser lijuhong 注释layer相关代码
             // switch (cfg.type) {
             //     case DTX:
             //         mesh.layer = this._getDTXLayer(cfg);
@@ -13164,7 +13165,7 @@
             if (cfg.transform) {
                 cfg.meshMatrix = cfg.transform.worldMatrix;
             }
-            // @reviser lijuhong 注释createPortion代码
+            // @reviser lijuhong 注释layer相关代码
             // mesh.portionId = mesh.layer.createPortion(mesh, cfg);
             // @reviser lijuhong 保存传入的cfg
             mesh.cfg = cfg;
@@ -13231,7 +13232,7 @@
             return 0;
         }
 
-        // @reviser lijuhong 注释Layer相关代码
+        // @reviser lijuhong 注释layer相关代码
         /* _getDTXLayer(cfg) {
             const origin = cfg.origin;
             const primitive = cfg.geometry ? cfg.geometry.primitive : cfg.primitive;
@@ -13375,7 +13376,7 @@
             return hashString;
         }
 
-        // @reviser lijuhong 注释Layer相关代码
+        // @reviser lijuhong 注释layer相关代码
         /* _getVBOInstancingLayer(cfg) {
             const model = this;
             const origin = cfg.origin;
@@ -14627,6 +14628,7 @@
 
             this._globalizeIDs(metaModelData, options);
 
+            // @reviser lijuhong 注释metaScene相关代码
             // const metaScene = this.metaScene;
             const propertyLookup = metaModelData.properties;
 

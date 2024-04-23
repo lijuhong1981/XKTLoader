@@ -172,6 +172,7 @@ class MetaModel {
 
         this._globalizeIDs(metaModelData, options)
 
+        // @reviser lijuhong 注释metaScene相关代码
         // const metaScene = this.metaScene;
         const propertyLookup = metaModelData.properties;
 
