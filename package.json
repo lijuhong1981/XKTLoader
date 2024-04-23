@@ -4,6 +4,7 @@
   "description": "",
   "main": "dist/xktloader.js",
   "module": "dist/xktloader.esm.js",
+  "type": "module",
   "scripts": {
     "build": "rollup --config rollup.config.js",
     "publish": "npm publish --access public"
