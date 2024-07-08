@@ -1,5 +1,10 @@
+import {math} from '../../viewer/scene/math/math.js';
 import {Marker} from "../../viewer/scene/marker/Marker.js";
 import {utils} from "../../viewer/scene/utils.js";
+
+const tempVec3a = math.vec3();
+const tempVec3b = math.vec3();
+const tempVec3c = math.vec3();
 
 /**
  * A {@link Marker} with an HTML label attached to it, managed by an {@link AnnotationsPlugin}.
@@ -40,6 +45,9 @@ class Annotation extends Marker {
             this._marker.addEventListener("click", this._onMouseClickedExternalMarker = () => {
                 this.plugin.fire("markerClicked", this);
             });
+            this._marker.addEventListener("contextmenu", this._onContextMenuExtenalMarker = () => {
+                this.plugin.fire("contextmenu", this);
+            });
             this._marker.addEventListener("mouseenter", this._onMouseEnterExternalMarker = () => {
                 this.plugin.fire("markerMouseEnter", this);
             });
@@ -67,6 +75,7 @@ class Annotation extends Marker {
         this._values = cfg.values || {};
         this._layoutDirty = true;
         this._visibilityDirty = true;
+        this._labelPosition = 24;
 
         this._buildHTML();
 
@@ -159,6 +168,10 @@ class Annotation extends Marker {
             this._marker.addEventListener("click", () => {
                 this.plugin.fire("markerClicked", this);
             });
+            this._marker.addEventListener("contextmenu", e => {
+                e.preventDefault();
+                this.plugin.fire("contextmenu", this);
+            });
             this._marker.addEventListener("mouseenter", () => {
                 this.plugin.fire("markerMouseEnter", this);
             });
@@ -193,17 +206,23 @@ class Annotation extends Marker {
      * @private
      */
     _updatePosition() {
+        const px = x => x + "px";
         const boundary = this.scene.canvas.boundary;
-        const left = boundary[0];
-        const top = boundary[1];
-        const canvasPos = this.canvasPos;
-        this._marker.style.left = (Math.floor(left + canvasPos[0]) - 12) + "px";
-        this._marker.style.top = (Math.floor(top + canvasPos[1]) - 12) + "px";
+        const left = boundary[0] + this.canvasPos[0];
+        const top  = boundary[1] + this.canvasPos[1];
+        const markerRect = this._marker.getBoundingClientRect();
+        const markerWidth = markerRect.width;
+        const markerDir = (this._markerAlign === "right") ? -1 : ((this._markerAlign === "center") ? 0 : 1);
+        const markerCenter = left + markerDir * (markerWidth / 2 - 12);
+        this._marker.style.left = px(markerCenter - markerWidth / 2);
+        this._marker.style.top  = px(top - 12);
         this._marker.style["z-index"] = 90005 + Math.floor(this._viewPos[2]) + 1;
-        const offsetX = 20;
-        const offsetY = -17;
-        this._label.style.left = 20 + Math.floor(left + canvasPos[0] + offsetX) + "px";
-        this._label.style.top = Math.floor(top + canvasPos[1] + offsetY) + "px";
+
+        const labelRect = this._label.getBoundingClientRect();
+        const labelWidth = labelRect.width;
+        const labelDir = Math.sign(this._labelPosition);
+        this._label.style.left = px(markerCenter + labelDir * (markerWidth / 2 + Math.abs(this._labelPosition) + labelWidth / 2) - labelWidth / 2);
+        this._label.style.top  = px(top - 17);
         this._label.style["z-index"] = 90005 + Math.floor(this._viewPos[2]) + 1;
     }
 
@@ -218,6 +237,55 @@ class Annotation extends Marker {
             }
         }
         return template;
+    }
+
+    /**
+     * Sets the Marker's worldPos and entity properties based on passed {@link PickResult}
+     *
+     * @param {PickResult} pickResult A PickResult to position the Marker at.
+     */
+    setFromPickResult(pickResult) {
+        if (!pickResult.worldPos || !pickResult.worldNormal) {
+            this.error("Param 'pickResult' does not have both worldPos and worldNormal");
+        } else {
+            const normalizedWorldNormal = math.normalizeVec3(pickResult.worldNormal, tempVec3a);
+            const offset = (this.plugin && this.plugin.surfaceOffset) || 0;
+            const offsetVec = math.mulVec3Scalar(normalizedWorldNormal, offset, tempVec3b);
+            const offsetWorldPos = math.addVec3(pickResult.worldPos, offsetVec, tempVec3c);
+            this.entity = pickResult.entity;
+            this.worldPos = offsetWorldPos;
+        }
+    }
+
+    /**
+     * Sets the horizontal alignment of the Annotation's marker HTML.
+     *
+     * @param {String} align Either "left", "center", "right" (default "left")
+     */
+    setMarkerAlign(align) {
+        const valid = [ "left", "center", "right" ];
+        if (! valid.includes(align)) {
+            this.error("Param 'align' should be one of: " + JSON.stringify(valid));
+        } else {
+            this._markerAlign = align;
+            this._updatePosition();
+        }
+    }
+
+    /**
+     * Sets the relative horizontal position of the Annotation's label HTML.
+     *
+     * @param {Number} position Negative - to the left, positive - to the right, otherwise ignore (default 24)
+     */
+    setLabelPosition(position) {
+        if (typeof position !== "number") {
+            this.error("Param 'position' is not a number");
+        } else if (position === 0) {
+            this.error("Param 'position' is zero");
+        } else {
+            this._labelPosition = position;
+            this._updatePosition();
+        }
     }
 
     /**
@@ -347,8 +415,10 @@ class Annotation extends Marker {
         if (this._marker) {
             if (!this._markerExternal) {
                 this._marker.parentNode.removeChild(this._marker);
+                this._marker = null;
             } else {
                 this._marker.removeEventListener("click", this._onMouseClickedExternalMarker);
+                this._marker.removeEventListener("contextmenu", this._onContextMenuExtenalMarker);
                 this._marker.removeEventListener("mouseenter", this._onMouseEnterExternalMarker);
                 this._marker.removeEventListener("mouseleave", this._onMouseLeaveExternalMarker);
                 this._marker = null;

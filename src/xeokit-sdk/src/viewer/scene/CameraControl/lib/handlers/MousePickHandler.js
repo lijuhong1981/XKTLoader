@@ -55,6 +55,14 @@ class MousePickHandler {
                     return;
                 }
 
+                if (cameraControl.hasSubs("rayMove"))
+                {
+                    const origin = math.vec3();
+                    const direction = math.vec3();
+                    math.canvasPosToWorldRay(scene.canvas.canvas, scene.camera.viewMatrix, scene.camera.projMatrix, scene.camera.projection, states.pointerCanvasPos, origin, direction);
+                    cameraControl.fire("rayMove", { canvasPos: states.pointerCanvasPos, ray: { origin: origin, direction: direction, canvasPos: states.pointerCanvasPos } }, true);
+                }
+
                 const hoverSubs = cameraControl.hasSubs("hover");
                 const hoverEnterSubs = cameraControl.hasSubs("hoverEnter");
                 const hoverOutSubs = cameraControl.hasSubs("hoverOut");
@@ -258,7 +266,7 @@ class MousePickHandler {
 
                 this._timeout = setTimeout(() => {
 
-                    if (firstClickPickResult) {
+                    if (firstClickPickResult && firstClickPickResult.worldPos) {
 
                         cameraControl.fire("picked", firstClickPickResult, true);
 

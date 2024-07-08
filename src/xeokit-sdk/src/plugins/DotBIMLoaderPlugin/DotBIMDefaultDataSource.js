@@ -1,9 +1,11 @@
-import {utils} from "../../viewer/index.js";
+import {utils} from "../../viewer/scene/utils.js";
 
 /**
- * Default data access strategy for {@link CityJSONLoaderPlugin}.
+ * Default data access strategy for {@link DotBIMLoaderPlugin}.
+ *
+ * This just loads assets using XMLHttpRequest.
  */
-class CityJSONDefaultDataSource {
+export class DotBIMDefaultDataSource {
 
     constructor(cfg = {}) {
         this.cacheBuster = (cfg.cacheBuster !== false);
@@ -22,14 +24,14 @@ class CityJSONDefaultDataSource {
     }
 
     /**
-     * Gets the contents of the given CityJSON file.
+     * Gets .BIM JSON.
      *
-     * @param {String|Number} src Path or ID of an CityJSON file.
-     * @param {Function} ok Callback fired on success, argument is the CityJSON JSON.
-     * @param {Function} error Callback fired on error.
+     * @param {String|Number} dotBIMSrc Identifies the .BIM JSON asset.
+     * @param {Function} ok Fired on successful loading of the .BIM JSON asset.
+     * @param {Function} error Fired on error while loading the .BIM JSON asset.
      */
-    getCityJSON(src, ok, error) {
-        utils.loadJSON(this._cacheBusterURL(src),
+    getDotBIM(dotBIMSrc, ok, error) {
+        utils.loadJSON(this._cacheBusterURL(dotBIMSrc),
             (json) => {
                 ok(json);
             },
@@ -38,5 +40,3 @@ class CityJSONDefaultDataSource {
             });
     }
 }
-
-export {CityJSONDefaultDataSource};

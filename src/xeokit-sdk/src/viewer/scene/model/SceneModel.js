@@ -45,6 +45,7 @@ import {SceneModelTransform} from "./SceneModelTransform.js";
 const tempVec3a = math.vec3();
 
 const tempOBB3 = math.OBB3();
+const tempQuaternion = math.vec4();
 
 const DEFAULT_SCALE = math.vec3([1, 1, 1]);
 const DEFAULT_POSITION = math.vec3([0, 0, 0]);
@@ -1124,11 +1125,16 @@ export class SceneModel extends Component {
      * represent the returned model. Set false to always use vertex buffer objects (VBOs). Note that DTX is only applicable
      * to non-textured triangle meshes, and that VBOs are always used for meshes that have textures, line segments, or point
      * primitives. Only works while {@link DTX#enabled} is also ````true````.
+     * @param {Number} [cfg.renderOrder=0] Specifies the rendering order for this SceneModel. This is used to control the order in which
+     * SceneModels are drawn when they have transparent objects, to give control over the order in which those objects are blended within the transparent
+     * render pass.
      */
     // @reviser lijuhong 移除参数owner
     constructor(cfg = {}) {
 
         super(cfg);
+
+        this.renderOrder = cfg.renderOrder || 0;
 
         // @reviser lijuhong 注释scene相关代码
         this._dtxEnabled = false;//this.scene.dtxEnabled && (cfg.dtxEnabled !== false);
@@ -2751,6 +2757,7 @@ export class SceneModel extends Component {
      * @param {Number[]} [cfg.position=[0,0,0]] Local 3D position of the mesh. Overridden by ````transformId````.
      * @param {Number[]} [cfg.scale=[1,1,1]] Scale of the mesh.  Overridden by ````transformId````.
      * @param {Number[]} [cfg.rotation=[0,0,0]] Rotation of the mesh as Euler angles given in degrees, for each of the X, Y and Z axis.  Overridden by ````transformId````.
+     * @param {Number[]} [cfg.quaternion] Rotation of the mesh as a quaternion.  Overridden by ````rotation````.
      * @param {Number[]} [cfg.matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]] Mesh modelling transform matrix. Overrides the ````position````, ````scale```` and ````rotation```` parameters. Also  overridden by ````transformId````.
      * @param {Number[]} [cfg.color=[1,1,1]] RGB color in range ````[0..1, 0..1, 0..1]````. Overridden by texture set ````colorTexture````. Overrides ````colors```` and ````colorsCompressed````.
      * @param {Number} [cfg.opacity=1] Opacity in range ````[0..1]````. Overridden by texture set ````colorTexture````.
@@ -2825,12 +2832,15 @@ export class SceneModel extends Component {
 
             if (cfg.matrix) {
                 cfg.meshMatrix = cfg.matrix;
-            } else if (cfg.scale || cfg.rotation || cfg.position) {
+            } else if (cfg.scale || cfg.rotation || cfg.position || cfg.quaternion) {
                 const scale = cfg.scale || DEFAULT_SCALE;
                 const position = cfg.position || DEFAULT_POSITION;
-                const rotation = cfg.rotation || DEFAULT_ROTATION;
-                math.eulerToQuaternion(rotation, "XYZ", DEFAULT_QUATERNION);
-                cfg.meshMatrix = math.composeMat4(position, DEFAULT_QUATERNION, scale, math.mat4());
+                if (cfg.rotation) {
+                    math.eulerToQuaternion(cfg.rotation, "XYZ", tempQuaternion);
+                    cfg.meshMatrix = math.composeMat4(position, tempQuaternion, scale, math.mat4());
+                } else {
+                    cfg.meshMatrix = math.composeMat4(position, cfg.quaternion || DEFAULT_QUATERNION, scale, math.mat4());
+                }
             }
 
             if (cfg.positionsDecodeBoundary) {
@@ -3032,13 +3042,16 @@ export class SceneModel extends Component {
                 // MATRIX
 
                 if (cfg.matrix) {
-                    cfg.meshMatrix = cfg.matrix.slice();
-                } else {
+                    cfg.meshMatrix = cfg.matrix;
+                } else if (cfg.scale || cfg.rotation || cfg.position || cfg.quaternion) {
                     const scale = cfg.scale || DEFAULT_SCALE;
                     const position = cfg.position || DEFAULT_POSITION;
-                    const rotation = cfg.rotation || DEFAULT_ROTATION;
-                    math.eulerToQuaternion(rotation, "XYZ", DEFAULT_QUATERNION);
-                    cfg.meshMatrix = math.composeMat4(position, DEFAULT_QUATERNION, scale, math.mat4());
+                    if (cfg.rotation) {
+                        math.eulerToQuaternion(cfg.rotation, "XYZ", tempQuaternion);
+                        cfg.meshMatrix = math.composeMat4(position, tempQuaternion, scale, math.mat4());
+                    } else {
+                        cfg.meshMatrix = math.composeMat4(position, cfg.quaternion || DEFAULT_QUATERNION, scale, math.mat4());
+                    }
                 }
 
                 math.AABB3ToOBB3(cfg.geometry.aabb, tempOBB3);
@@ -3728,7 +3741,7 @@ export class SceneModel extends Component {
     // -------------- RENDERING ---------------------------------------------------------------------------------------
 
     /** @private */
-    drawColorOpaque(frameCtx) {
+    drawColorOpaque(frameCtx, layerList) {
         const renderFlags = this.renderFlags;
         for (let i = 0, len = renderFlags.visibleLayers.length; i < len; i++) {
             const layerIndex = renderFlags.visibleLayers[i];

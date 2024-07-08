@@ -1,6 +1,5 @@
-import {Marker} from "../../viewer/scene/marker/Marker.js";
+import {Dot3D} from "../lib/ui/index.js";
 import {Wire} from "../lib/html/Wire.js";
-import {Dot} from "../lib/html/Dot.js";
 import {Label} from "../lib/html/Label.js";
 import {math} from "../../viewer/scene/math/math.js";
 import {Component} from "../../viewer/scene/Component.js";
@@ -13,6 +12,14 @@ const lengthWire = (x1, y1, x2, y2) => {
     var b = y1 - y2;
     return Math.sqrt(a * a + b * b);
 };
+
+function determineMeasurementOrientation(A, B, distance) {
+    const yDiff = Math.abs(B[1] - A[1]);
+
+    return yDiff > distance ? 'Vertical' : 'Horizontal';
+}
+
+// function findDistance
 
 /**
  * @desc Measures the distance between two 3D points.
@@ -43,16 +50,13 @@ class DistanceMeasurement extends Component {
 
         var scene = this.plugin.viewer.scene;
 
-        this._originMarker = new Marker(scene, cfg.origin);
-        this._targetMarker = new Marker(scene, cfg.target);
-
         this._originWorld = math.vec3();
         this._targetWorld = math.vec3();
 
-        this._wp = new Float64Array(24);
-        this._vp = new Float64Array(24);
+        this._wp = new Float64Array(24); //world position
+        this._vp = new Float64Array(24); //view position
         this._pp = new Float64Array(24);
-        this._cp = new Float64Array(8);
+        this._cp = new Float64Array(8); //canvas position
 
         this._xAxisLabelCulled = false;
         this._yAxisLabelCulled = false;
@@ -90,7 +94,7 @@ class DistanceMeasurement extends Component {
             this.plugin.viewer.scene.canvas.canvas.dispatchEvent(new WheelEvent('wheel', event));
         };
 
-        this._originDot = new Dot(this._container, {
+        this._originDot = new Dot3D(scene, cfg.origin, this._container, {
             fillColor: this._color,
             zIndex: plugin.zIndex !== undefined ? plugin.zIndex + 2 : undefined,
             onMouseOver,
@@ -102,7 +106,7 @@ class DistanceMeasurement extends Component {
             onContextMenu
         });
 
-        this._targetDot = new Dot(this._container, {
+        this._targetDot = new Dot3D(scene, cfg.target, this._container, {
             fillColor: this._color,
             zIndex: plugin.zIndex !== undefined ? plugin.zIndex + 2 : undefined,
             onMouseOver,
@@ -226,6 +230,7 @@ class DistanceMeasurement extends Component {
             onContextMenu
         });
 
+        this._measurementOrientation = 'Horizontal';
         this._wpDirty = false;
         this._vpDirty = false;
         this._cpDirty = false;
@@ -240,18 +245,22 @@ class DistanceMeasurement extends Component {
         this._yAxisVisible = false;
         this._zAxisVisible = false;
         this._axisEnabled = true;
+        this._xLabelEnabled = false;
+        this._yLabelEnabled = false;
+        this._zLabelEnabled = false;
+        this._lengthLabelEnabled = false;
         this._labelsVisible = false;
         this._labelsOnWires = false;
         this._clickable = false;
 
-        this._originMarker.on("worldPos", (value) => {
-            this._originWorld.set(value || [0, 0, 0]);
+        this._originDot.on("worldPos", (value) => {
+            this._originWorld.set(value || [0,0,0]); 
             this._wpDirty = true;
             this._needUpdate(0); // No lag
         });
 
-        this._targetMarker.on("worldPos", (value) => {
-            this._targetWorld.set(value || [0, 0, 0]);
+        this._targetDot.on("worldPos", (value) => {
+            this._targetWorld.set(value || [0,0,0]); 
             this._wpDirty = true;
             this._needUpdate(0); // No lag
         });
@@ -300,8 +309,13 @@ class DistanceMeasurement extends Component {
         this.xAxisVisible = cfg.xAxisVisible;
         this.yAxisVisible = cfg.yAxisVisible;
         this.zAxisVisible = cfg.zAxisVisible;
+        this.xLabelEnabled = cfg.xLabelEnabled;
+        this.yLabelEnabled = cfg.yLabelEnabled;
+        this.zLabelEnabled = cfg.zLabelEnabled;
+        this.lengthLabelEnabled = cfg.lengthLabelEnabled;
         this.labelsVisible = cfg.labelsVisible;
         this.labelsOnWires = cfg.labelsOnWires;
+        this.useRotationAdjustment = cfg.useRotationAdjustment;
     }
 
     _update() {
@@ -314,25 +328,50 @@ class DistanceMeasurement extends Component {
 
         if (this._wpDirty) {
 
-            this._wp[0] = this._originWorld[0];
-            this._wp[1] = this._originWorld[1];
-            this._wp[2] = this._originWorld[2];
-            this._wp[3] = 1.0;
+            this._measurementOrientation = determineMeasurementOrientation(this._originWorld, this._targetWorld, 0);
+            if(this._measurementOrientation === 'Vertical' && this.useRotationAdjustment){
+                this._wp[0] = this._originWorld[0];
+                this._wp[1] = this._originWorld[1];
+                this._wp[2] = this._originWorld[2];
+                this._wp[3] = 1.0;
 
-            this._wp[4] = this._targetWorld[0];
-            this._wp[5] = this._originWorld[1];
-            this._wp[6] = this._originWorld[2];
-            this._wp[7] = 1.0;
+                this._wp[4] = this._originWorld[0]; //x-axis
+                this._wp[5] = this._originWorld[1];
+                this._wp[6] = this._originWorld[2];
+                this._wp[7] = 1.0;
 
-            this._wp[8] = this._targetWorld[0];
-            this._wp[9] = this._targetWorld[1];
-            this._wp[10] = this._originWorld[2];
-            this._wp[11] = 1.0;
+                this._wp[8] = this._originWorld[0]; //x-axis
+                this._wp[9] = this._targetWorld[1]; //y-axis
+                this._wp[10] = this._originWorld[2];
+                this._wp[11] = 1.0;
 
-            this._wp[12] = this._targetWorld[0];
-            this._wp[13] = this._targetWorld[1];
-            this._wp[14] = this._targetWorld[2];
-            this._wp[15] = 1.0;
+                this._wp[12] = this._targetWorld[0];
+                this._wp[13] = this._targetWorld[1];
+                this._wp[14] = this._targetWorld[2];
+                this._wp[15] = 1.0;
+            }
+            else {
+                this._wp[0] = this._originWorld[0];
+                this._wp[1] = this._originWorld[1];
+                this._wp[2] = this._originWorld[2];
+                this._wp[3] = 1.0;
+
+                this._wp[4] = this._targetWorld[0];
+                this._wp[5] = this._originWorld[1];
+                this._wp[6] = this._originWorld[2];
+                this._wp[7] = 1.0;
+
+                this._wp[8] = this._targetWorld[0];
+                this._wp[9] = this._targetWorld[1];
+                this._wp[10] = this._originWorld[2];
+                this._wp[11] = 1.0;
+
+                this._wp[12] = this._targetWorld[0];
+                this._wp[13] = this._targetWorld[1];
+                this._wp[14] = this._targetWorld[2];
+                this._wp[15] = 1.0;
+            }
+            
 
             this._wpDirty = false;
             this._vpDirty = true;
@@ -382,8 +421,8 @@ class DistanceMeasurement extends Component {
         }
 
         const near = -0.3;
-        const vpz1 = this._originMarker.viewPos[2];
-        const vpz2 = this._targetMarker.viewPos[2];
+        const vpz1 = this._originDot.viewPos[2];
+        const vpz2 = this._targetDot.viewPos[2];
 
         if (vpz1 > near || vpz2 > near) {
 
@@ -431,9 +470,6 @@ class DistanceMeasurement extends Component {
                 cp[j + 1] = top + Math.floor((1 - pp[i + 1] / pp[i + 3]) * canvasHeight / 2);
                 j += 2;
             }
-
-            this._originDot.setPos(cp[0], cp[1]);
-            this._targetDot.setPos(cp[6], cp[7]);
 
             this._lengthWire.setStartAndEnd(cp[0], cp[1], cp[6], cp[7]);
 
@@ -503,7 +539,14 @@ class DistanceMeasurement extends Component {
                 }
 
                 if (!this._zAxisLabelCulled) {
-                    this._zAxisLabel.setText(tilde + Math.abs((this._targetWorld[2] - this._originWorld[2]) * scale).toFixed(2) + unitAbbrev);
+                    if(this._measurementOrientation === 'Vertical' && this.useRotationAdjustment) {
+                        this._zAxisLabel.setPrefix("");
+                        this._zAxisLabel.setText(tilde + Math.abs(math.lenVec3(math.subVec3(this._targetWorld, [this._originWorld[0], this._targetWorld[1], this._originWorld[2]], distVec3)) * scale).toFixed(2) + unitAbbrev);
+                    }
+                    else {
+                        this._zAxisLabel.setPrefix("Z");
+                        this._zAxisLabel.setText(tilde + Math.abs((this._targetWorld[2] - this._originWorld[2]) * scale).toFixed(2) + unitAbbrev);
+                    }
                     this._zAxisLabel.setCulled(!this.axisVisible);
                 } else {
                     this._zAxisLabel.setCulled(true);
@@ -569,21 +612,21 @@ class DistanceMeasurement extends Component {
     }
 
     /**
-     * Gets the origin {@link Marker}.
+     * Gets the origin {@link Dot3D}.
      *
-     * @type {Marker}
+     * @type {Dot3D}
      */
     get origin() {
-        return this._originMarker;
+        return this._originDot;
     }
 
     /**
-     * Gets the target {@link Marker}.
+     * Gets the target {@link Dot3D}.
      *
-     * @type {Marker}
+     * @type {Dot3D}
      */
     get target() {
-        return this._targetMarker;
+        return this._targetDot;
     }
 
     /**
@@ -623,7 +666,7 @@ class DistanceMeasurement extends Component {
         this._originDot.setVisible(this._visible && this._originVisible);
         this._targetDot.setVisible(this._visible && this._targetVisible);
         this._lengthWire.setVisible(this._visible && this._wireVisible);
-        this._lengthLabel.setVisible(this._visible && this._wireVisible);
+        this._lengthLabel.setVisible(this._visible && this._wireVisible && this._lengthLabelEnabled);
 
         const xAxisVisible = this._visible && this._axisVisible && this._xAxisVisible;
         const yAxisVisible = this._visible && this._axisVisible && this._yAxisVisible;
@@ -633,9 +676,9 @@ class DistanceMeasurement extends Component {
         this._yAxisWire.setVisible(yAxisVisible);
         this._zAxisWire.setVisible(zAxisVisible);
 
-        this._xAxisLabel.setVisible(xAxisVisible && !this._xAxisLabelCulled);
-        this._yAxisLabel.setVisible(yAxisVisible && !this._yAxisLabelCulled);
-        this._zAxisLabel.setVisible(zAxisVisible && !this._zAxisLabelCulled);
+        this._xAxisLabel.setVisible(xAxisVisible && !this._xAxisLabelCulled && this._EnabledVisible);
+        this._yAxisLabel.setVisible(yAxisVisible && !this._yAxisLabelCulled && this._yLabelEnabled);
+        this._zAxisLabel.setVisible(zAxisVisible && !this._zAxisLabelCulled && this._zLabelEnabled);
 
         this._cpDirty = true;
 
@@ -652,7 +695,7 @@ class DistanceMeasurement extends Component {
     }
 
     /**
-     * Sets if the origin {@link Marker} is visible.
+     * Sets if the origin {@link Dot3D} is visible.
      *
      * @type {Boolean}
      */
@@ -663,7 +706,7 @@ class DistanceMeasurement extends Component {
     }
 
     /**
-     * Gets if the origin {@link Marker} is visible.
+     * Gets if the origin {@link Dot3D} is visible.
      *
      * @type {Boolean}
      */
@@ -672,7 +715,7 @@ class DistanceMeasurement extends Component {
     }
 
     /**
-     * Sets if the target {@link Marker} is visible.
+     * Sets if the target {@link Dot3D} is visible.
      *
      * @type {Boolean}
      */
@@ -683,7 +726,7 @@ class DistanceMeasurement extends Component {
     }
 
     /**
-     * Gets if the target {@link Marker} is visible.
+     * Gets if the target {@link Dot3D} is visible.
      *
      * @type {Boolean}
      */
@@ -705,9 +748,9 @@ class DistanceMeasurement extends Component {
         this._xAxisWire.setVisible(axisVisible && this._xAxisVisible);
         this._yAxisWire.setVisible(axisVisible && this._yAxisVisible);
         this._zAxisWire.setVisible(axisVisible && this._zAxisVisible);
-        this._xAxisLabel.setVisible(axisVisible && !this._xAxisLabelCulled&& this._xAxisVisible);
-        this._yAxisLabel.setVisible(axisVisible && !this._yAxisLabelCulled&& this._xAxisVisible);
-        this._zAxisLabel.setVisible(axisVisible && !this._zAxisLabelCulled&& this._xAxisVisible);
+        this._xAxisLabel.setVisible(axisVisible && !this._xAxisLabelCulled&& this._xAxisVisible && this._xLabelEnabled);
+        this._yAxisLabel.setVisible(axisVisible && !this._yAxisLabelCulled&& this._xAxisVisible && this._yLabelEnabled);
+        this._zAxisLabel.setVisible(axisVisible && !this._zAxisLabelCulled&& this._xAxisVisible && this._zLabelEnabled);
         this._cpDirty = true;
         this._needUpdate();
     }
@@ -767,7 +810,7 @@ class DistanceMeasurement extends Component {
         this._xAxisVisible = value;
         const axisVisible = this._visible && this._axisVisible && this._xAxisVisible && this._axisEnabled;
         this._xAxisWire.setVisible(axisVisible);
-        this._xAxisLabel.setVisible(axisVisible && !this._xAxisLabelCulled);
+        this._xAxisLabel.setVisible(axisVisible && !this._xAxisLabelCulled && this._xLabelEnabled);
         this._cpDirty = true;
         this._needUpdate();
     }
@@ -795,7 +838,7 @@ class DistanceMeasurement extends Component {
         this._yAxisVisible = value;
         const axisVisible = this._visible && this._axisVisible && this._yAxisVisible && this._axisEnabled;
         this._yAxisWire.setVisible(axisVisible);
-        this._yAxisLabel.setVisible(axisVisible && !this._yAxisLabelCulled);
+        this._yAxisLabel.setVisible(axisVisible && !this._yAxisLabelCulled && this._yLabelEnabled);
         this._cpDirty = true;
         this._needUpdate();
     }
@@ -823,7 +866,7 @@ class DistanceMeasurement extends Component {
         this._zAxisVisible = value;
         const axisVisible = this._visible && this._axisVisible && this._zAxisVisible && this._axisEnabled;
         this._zAxisWire.setVisible(axisVisible);
-        this._zAxisLabel.setVisible(axisVisible && !this._zAxisLabelCulled);
+        this._zAxisLabel.setVisible(axisVisible && !this._zAxisLabelCulled && this._zLabelEnabled);
         this._cpDirty = true;
         this._needUpdate();
     }
@@ -848,7 +891,7 @@ class DistanceMeasurement extends Component {
         value = value !== undefined ? Boolean(value) : this.plugin.defaultWireVisible;
         this._wireVisible = value;
         var wireVisible = this._visible && this._wireVisible;
-        this._lengthLabel.setVisible(wireVisible);
+        this._lengthLabel.setVisible(wireVisible && this._lengthLabelEnabled);
         this._lengthWire.setVisible(wireVisible);
     }
 
@@ -862,7 +905,7 @@ class DistanceMeasurement extends Component {
     }
 
     /**
-     * Sets if the labels are visible.
+     * Sets if the labels are visible except the length label.
      *
      * @type {Boolean}
      */
@@ -870,10 +913,10 @@ class DistanceMeasurement extends Component {
         value = value !== undefined ? Boolean(value) : this.plugin.defaultLabelsVisible;
         this._labelsVisible = value;
         var labelsVisible = this._visible && this._labelsVisible;
-        this._xAxisLabel.setVisible(labelsVisible && !this._xAxisLabelCulled && this._clickable && this._axisEnabled);
-        this._yAxisLabel.setVisible(labelsVisible && !this._yAxisLabelCulled && this._clickable && this._axisEnabled);
-        this._zAxisLabel.setVisible(labelsVisible && !this._zAxisLabelCulled && this._clickable && this._axisEnabled);
-        this._lengthLabel.setVisible(labelsVisible);
+        this._xAxisLabel.setVisible(labelsVisible && !this._xAxisLabelCulled && this._clickable && this._axisEnabled && this._xLabelEnabled);
+        this._yAxisLabel.setVisible(labelsVisible && !this._yAxisLabelCulled && this._clickable && this._axisEnabled && this._yLabelEnabled);
+        this._zAxisLabel.setVisible(labelsVisible && !this._zAxisLabelCulled && this._clickable && this._axisEnabled && this._zLabelEnabled);
+        this._lengthLabel.setVisible(labelsVisible && this._lengthLabelEnabled);
         this._cpDirty = true;
         this._needUpdate();
     }
@@ -885,6 +928,98 @@ class DistanceMeasurement extends Component {
      */
     get labelsVisible() {
         return this._labelsVisible;
+    }
+
+    /**
+     * Sets if the x label is enabled.
+     *
+     * @type {Boolean}
+     */
+    set xLabelEnabled(value) {
+        value = value !== undefined ? Boolean(value) : this.plugin.defaultXLabelEnabled;
+        this._xLabelEnabled = value;
+        var labelsVisible = this._visible && this._labelsVisible;
+        this._xAxisLabel.setVisible(labelsVisible && !this._xAxisLabelCulled && this._clickable && this._axisEnabled && this._xLabelEnabled);
+        this._cpDirty = true;
+        this._needUpdate();
+    }
+
+    /**
+     * Gets if the x label is enabled.
+     *
+     * @type {Boolean}
+     */
+    get xLabelEnabled(){
+        return this._xLabelEnabled;
+    }
+
+    /**
+     * Sets if the y label is enabled.
+     *
+     * @type {Boolean}
+     */
+    set yLabelEnabled(value) {
+        value = value !== undefined ? Boolean(value) : this.plugin.defaultYLabelEnabled;
+        this._yLabelEnabled = value;
+        var labelsVisible = this._visible && this._labelsVisible;
+        this._yAxisLabel.setVisible(labelsVisible && !this._yAxisLabelCulled && this._clickable && this._axisEnabled && this._yLabelEnabled);
+        this._cpDirty = true;
+        this._needUpdate();
+    }
+
+    /**
+     * Gets if the y label is enabled.
+     *
+     * @type {Boolean}
+     */
+    get yLabelEnabled(){
+        return this._yLabelEnabled;
+    }
+
+    /**
+     * Sets if the z label is enabled.
+     *
+     * @type {Boolean}
+     */
+    set zLabelEnabled(value) {
+        value = value !== undefined ? Boolean(value) : this.plugin.defaultZLabelEnabled;
+        this._zLabelEnabled = value;
+        var labelsVisible = this._visible && this._labelsVisible;
+        this._zAxisLabel.setVisible(labelsVisible && !this._zAxisLabelCulled && this._clickable && this._axisEnabled && this._zLabelEnabled);
+        this._cpDirty = true;
+        this._needUpdate();
+    }
+
+    /**
+     * Gets if the z label is enabled.
+     *
+     * @type {Boolean}
+     */
+    get zLabelEnabled(){
+        return this._zLabelEnabled;
+    }
+
+    /**
+     * Sets if the length label is enabled.
+     *
+     * @type {Boolean}
+     */
+    set lengthLabelEnabled(value) {
+        value = value !== undefined ? Boolean(value) : this.plugin.defaultLengthLabelEnabled;
+        this._lengthLabelEnabled = value;
+        var labelsVisible = this._visible && this._labelsVisible;
+        this._lengthLabel.setVisible(labelsVisible && !this._lengthAxisLabelCulled && this._clickable && this._axisEnabled && this._lengthLabelEnabled);
+        this._cpDirty = true;
+        this._needUpdate();
+    }
+
+    /**
+     * Gets if the length label is enabled.
+     *
+     * @type {Boolean}
+     */
+    get lengthLabelEnabled(){
+        return this._lengthLabelEnabled;
     }
 
     /**

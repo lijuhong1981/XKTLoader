@@ -216,10 +216,15 @@ class Mesh extends Component {
      * @param {EmphasisMaterial} [cfg.highlightMaterial] {@link EmphasisMaterial} to define the xrayed appearance for this Mesh. Inherits {@link Scene#highlightMaterial} by default.
      * @param {EmphasisMaterial} [cfg.selectedMaterial] {@link EmphasisMaterial} to define the selected appearance for this Mesh. Inherits {@link Scene#selectedMaterial} by default.
      * @param {EmphasisMaterial} [cfg.edgeMaterial] {@link EdgeMaterial} to define the appearance of enhanced edges for this Mesh. Inherits {@link Scene#edgeMaterial} by default.
+     * @param {Number} [cfg.renderOrder=0] Specifies the rendering order for this mESH. This is used to control the order in which
+     * mESHES are drawn when they have transparent objects, to give control over the order in which those objects are blended within the transparent
+     * render pass.
      */
     constructor(owner, cfg = {}) {
 
         super(owner, cfg);
+
+        this.renderOrder = cfg.renderOrder || 0;
 
         /**
          * ID of the corresponding object within the originating system, if any.
@@ -1893,8 +1898,8 @@ class Mesh extends Component {
     }
 
     /** @private */
-    pickTriangleSurface(pickViewMatrix, pickProjMatrix, pickResult) {
-        pickTriangleSurface(this, pickViewMatrix, pickProjMatrix, pickResult);
+    pickTriangleSurface(pickViewMatrix, pickProjMatrix, projection, pickResult) {
+        pickTriangleSurface(this, pickViewMatrix, pickProjMatrix, projection, pickResult);
     }
 
     /** @private  */
@@ -1986,7 +1991,7 @@ const pickTriangleSurface = (function () {
     const tempVec3j = math.vec3();
     const tempVec3k = math.vec3();
 
-    return function (mesh, pickViewMatrix, pickProjMatrix, pickResult) {
+    return function (mesh, pickViewMatrix, pickProjMatrix, projection, pickResult) {
 
         var primIndex = pickResult.primIndex;
 
@@ -2065,7 +2070,7 @@ const pickTriangleSurface = (function () {
                 // Attempt to ray-pick the triangle in local space
 
                 if (pickResult.canvasPos) {
-                    math.canvasPosToLocalRay(canvas.canvas, mesh.origin ? createRTCViewMat(pickViewMatrix, mesh.origin) : pickViewMatrix, pickProjMatrix, mesh.worldMatrix, pickResult.canvasPos, localRayOrigin, localRayDir);
+                    math.canvasPosToLocalRay(canvas.canvas, mesh.origin ? createRTCViewMat(pickViewMatrix, mesh.origin) : pickViewMatrix, pickProjMatrix, projection, mesh.worldMatrix, pickResult.canvasPos, localRayOrigin, localRayDir);
 
                 } else if (pickResult.origin && pickResult.direction) {
                     math.worldRayToLocalRay(mesh.worldMatrix, pickResult.origin, pickResult.direction, localRayOrigin, localRayDir);

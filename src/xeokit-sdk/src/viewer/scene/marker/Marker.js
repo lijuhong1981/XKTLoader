@@ -65,7 +65,7 @@ const tempVec4b = math.vec4();
  * });
  *
  * // Create the Marker, associated with our Mesh Entity
- * const myMarker = new Marker({
+ * const myMarker = new Marker(viewer, {
  *      entity: entity,
  *      worldPos: [10,0,0],
  *      occludable: true
@@ -196,11 +196,17 @@ class Marker extends Component {
                 return;
             }
             if (this._onEntityDestroyed !== null) {
-                this._entity.off(this._onEntityDestroyed);
+                if (this._entity.model) {
+                    this._entity.model.off(this._onEntityDestroyed);
+                } else {
+                    this._entity.off(this._onEntityDestroyed);
+                }
                 this._onEntityDestroyed = null;
             }
             if (this._onEntityModelDestroyed !== null) {
-                this._entity.model.off(this._onEntityModelDestroyed);
+                if (this._entity.model) {
+                    this._entity.model.off(this._onEntityModelDestroyed);
+                }
                 this._onEntityModelDestroyed = null;
             }
         }
@@ -246,6 +252,9 @@ class Marker extends Component {
             return;
         }
         this._occludable = occludable;
+        if (this._occludable) {
+            this._renderer.markerWorldPosUpdated(this);
+        }
     }
 
     /**
@@ -367,7 +376,7 @@ class Marker extends Component {
         this.scene.camera.off(this._onCameraProjMatrix);
         if (this._entity) {
             if (this._onEntityDestroyed !== null) {
-                this._entity.off(this._onEntityDestroyed);
+                this._entity.model.off(this._onEntityDestroyed);
             }
             if (this._onEntityModelDestroyed !== null) {
                 this._entity.model.off(this._onEntityModelDestroyed);

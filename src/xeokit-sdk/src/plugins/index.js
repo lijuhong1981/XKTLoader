@@ -19,3 +19,5 @@ export * from "./XML3DLoaderPlugin/index.js";
 export * from "./WebIFCLoaderPlugin/index.js";
 export * from "./LASLoaderPlugin/index.js";
 export * from "./CityJSONLoaderPlugin/index.js";
+export * from "./DotBIMLoaderPlugin/index.js";
+export * from "./ZonesPlugin/index.js";

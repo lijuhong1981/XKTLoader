@@ -7,7 +7,6 @@ import {WEBGL_INFO} from "../../webglInfo.js";
 const TEST_MODE = false;
 const MARKER_COLOR = math.vec3([1.0, 0.0, 0.0]);
 const POINT_SIZE = 20;
-const MARKER_SPRITE_CLIPZ_OFFSET = -0.001; // Amount that we offset sprite clip Z coords to raise them from surfaces
 
 const tempVec3a = math.vec3();
 
@@ -74,7 +73,6 @@ class OcclusionTester {
     markerWorldPosUpdated(marker) {
         const occlusionLayer = this._markersToOcclusionLayersMap[marker.id];
         if (!occlusionLayer) {
-            marker.error("Marker has not been added to OcclusionTester");
             return;
         }
         const originHash = marker.origin.join();
@@ -89,7 +87,7 @@ class OcclusionTester {
             let newOcclusionLayer = this._occlusionLayers[originHash];
             if (!newOcclusionLayer) {
                 newOcclusionLayer = new OcclusionLayer(this._scene, marker.origin);
-                this._occlusionLayers[originHash] = occlusionLayer;
+                this._occlusionLayers[originHash] = newOcclusionLayer;
                 this._occlusionLayersListDirty = true;
             }
             newOcclusionLayer.addMarker(marker);
@@ -219,7 +217,9 @@ class OcclusionTester {
         if (scene.logarithmicDepthBufferEnabled) {
            src.push("vFragDepth = 1.0 + clipPos.w;");
         } else {
-            src.push("clipPos.z += " + MARKER_SPRITE_CLIPZ_OFFSET + ";");
+            if (scene.markerZOffset < 0.000) {
+                src.push("clipPos.z += " + scene.markerZOffset + ";");
+            }
         }
         src.push("   gl_Position = clipPos;");
         src.push("}");
@@ -333,7 +333,10 @@ class OcclusionTester {
                 continue;
             }
 
-            const origin = occlusionLayer.origin;
+            // The `origin` has been changed from `occlusionLayer.origin` to `[ 0, 0, 0 ]`
+            // because OcclusionLayer markers' transformation is being applied through the
+            // OcclusionLayer::positions array. See XEOK-33
+            const origin = [ 0, 0, 0 ];
 
             gl.uniformMatrix4fv(this._uViewMatrix, false, createRTCViewMat(camera.viewMatrix, origin));
 
