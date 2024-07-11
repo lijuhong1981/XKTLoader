@@ -1433,6 +1433,11 @@ export class SceneModel extends Component {
         return this._meshes;
     }
 
+    // @reviser lijuhong 新增meshList属性
+    get meshList() {
+        return this._meshList;
+    }
+
     /**
      * The {@link SceneModelEntity}s in this SceneModel.
      *

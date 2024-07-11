@@ -29,11 +29,11 @@
     });
 ```
 
-获得sceneModel对象后，遍历_meshList
+获得sceneModel对象后，遍历meshList
 
 ```js
-    for (let i = 0, len = sceneModel._meshList.length; i < len; i++) {
-        const mesh = sceneModel._meshList[i];
+    for (let i = 0, len = sceneModel.meshList.length; i < len; i++) {
+        const mesh = sceneModel.meshList[i];
         console.log(mesh.cfg);
     }
 ```
