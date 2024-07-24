@@ -1160,7 +1160,10 @@ export class SceneModel extends Component {
         this._meshList = [];
 
         this.layerList = []; // For GL state efficiency when drawing, InstancingLayers are in first part, BatchingLayers are in second
+        this._layersToFinalize = [];
+
         this._entityList = [];
+        this._entitiesToFinalize = [];
 
         this._geometries = {};
         this._dtxBuckets = {}; // Geometries with optimizations used for data texture representation
@@ -1236,6 +1239,7 @@ export class SceneModel extends Component {
         this._numTriangles = 0;
         this._numLines = 0;
         this._numPoints = 0;
+        this._layersFinalized = false;
 
         this._edgeThreshold = cfg.edgeThreshold || 10;
 
@@ -2860,8 +2864,9 @@ export class SceneModel extends Component {
 
                 // NPR
 
-                cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
-                cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
+                // @reviser lijuhong 移除转换，保留Float值，范围0.0~1.0
+                // cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
+                // cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
 
                 // RTC
 
@@ -2937,10 +2942,11 @@ export class SceneModel extends Component {
 
                 // PBR
 
-                cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : [255, 255, 255];
-                cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
-                cfg.metallic = (cfg.metallic !== undefined && cfg.metallic !== null) ? Math.floor(cfg.metallic * 255) : 0;
-                cfg.roughness = (cfg.roughness !== undefined && cfg.roughness !== null) ? Math.floor(cfg.roughness * 255) : 255;
+                // @reviser lijuhong 移除转换，保留Float值，范围0.0~1.0
+                // cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : [255, 255, 255];
+                // cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
+                // cfg.metallic = (cfg.metallic !== undefined && cfg.metallic !== null) ? Math.floor(cfg.metallic * 255) : 0;
+                // cfg.roughness = (cfg.roughness !== undefined && cfg.roughness !== null) ? Math.floor(cfg.roughness * 255) : 255;
 
                 // RTC
 
@@ -3078,8 +3084,9 @@ export class SceneModel extends Component {
 
                 // NPR
 
-                cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
-                cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
+                // @reviser lijuhong 移除转换，保留Float值，范围0.0~1.0
+                // cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
+                // cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
 
                 // BUCKETING - lazy generated, reused
 
@@ -3098,10 +3105,11 @@ export class SceneModel extends Component {
 
                 // PBR
 
-                cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
-                cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
-                cfg.metallic = (cfg.metallic !== undefined && cfg.metallic !== null) ? Math.floor(cfg.metallic * 255) : 0;
-                cfg.roughness = (cfg.roughness !== undefined && cfg.roughness !== null) ? Math.floor(cfg.roughness * 255) : 255;
+                // @reviser lijuhong 移除转换，保留Float值，范围0.0~1.0
+                // cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
+                // cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
+                // cfg.metallic = (cfg.metallic !== undefined && cfg.metallic !== null) ? Math.floor(cfg.metallic * 255) : 0;
+                // cfg.roughness = (cfg.roughness !== undefined && cfg.roughness !== null) ? Math.floor(cfg.roughness * 255) : 255;
 
                 // TEXTURE
 
@@ -3246,6 +3254,7 @@ export class SceneModel extends Component {
         }
         this._dtxLayers[layerId] = dtxLayer;
         this.layerList.push(dtxLayer);
+        this._layersToFinalize.push(dtxLayer);
         return dtxLayer;
     }
 
@@ -3346,6 +3355,7 @@ export class SceneModel extends Component {
         }
         this._vboBatchingLayers[layerId] = vboBatchingLayer;
         this.layerList.push(vboBatchingLayer);
+        this._layersToFinalize.push(vboBatchingLayer);
         return vboBatchingLayer;
     } */
 
@@ -3439,6 +3449,7 @@ export class SceneModel extends Component {
         }
         this._vboInstancingLayers[layerId] = vboInstancingLayer;
         this.layerList.push(vboInstancingLayer);
+        this._layersToFinalize.push(vboInstancingLayer);
         return vboInstancingLayer;
     } */
 
@@ -3541,40 +3552,48 @@ export class SceneModel extends Component {
             lodCullable); // Internally sets SceneModelEntity#parent to this SceneModel
         this._entityList.push(entity);
         this._entities[cfg.id] = entity;
+        this._entitiesToFinalize.push(entity);
         this.numEntities++;
     }
 
     /**
-     * Finalizes this SceneModel.
-     *
-     * Once finalized, you can't add anything more to this SceneModel.
+     * Pre-renders all meshes that have been added, even if the SceneModel has not bee finalized yet.
+     * This is use for progressively showing the SceneModel while it is being loaded or constructed.
+     * @returns {boolean}
      */
-    finalize() {
+    preFinalize() {
         if (this.destroyed) {
-            return;
+            return false;
+        }
+        if (this._layersToFinalize.length === 0) {
+            return false;
         }
         this._createDummyEntityForUnusedMeshes();
-        for (let i = 0, len = this.layerList.length; i < len; i++) {
-            const layer = this.layerList[i];
+        for (let i = 0, len = this._layersToFinalize.length; i < len; i++) {
+            const layer = this._layersToFinalize[i];
             layer.finalize();
         }
-        // @reivser lijuhong 注释掉释放_geometries代码
-        // this._geometries = {};
-        this._dtxBuckets = {};
-        // @reivser lijuhong 注释掉释放_textures、_textureSets代码
-        // this._textures = {};
-        // this._textureSets = {};
-        this._dtxLayers = {};
-        this._vboInstancingLayers = {};
         this._vboBatchingLayers = {};
-        for (let i = 0, len = this._entityList.length; i < len; i++) {
-            const entity = this._entityList[i];
+        this._vboInstancingLayers = {};
+        this._dtxLayers = {};
+        this._layersToFinalize = [];
+        for (let i = 0, len = this._entitiesToFinalize.length; i < len; i++) {
+            const entity = this._entitiesToFinalize[i];
             entity._finalize();
         }
-        for (let i = 0, len = this._entityList.length; i < len; i++) {
-            const entity = this._entityList[i];
+        for (let i = 0, len = this._entitiesToFinalize.length; i < len; i++) {
+            const entity = this._entitiesToFinalize[i];
             entity._finalize2();
         }
+        this._entitiesToFinalize = [];
+        // @reviser lijuhong 注释scene相关代码
+        // this.scene._aabbDirty = true;
+        this._viewMatrixDirty = true;
+        this._matrixDirty = true;
+        this._aabbDirty = true;
+        this._setWorldMatrixDirty();
+        this._sceneModelDirty();
+        this.position = this._position;
         // Sort layers to reduce WebGL shader switching when rendering them
         this.layerList.sort((a, b) => {
             if (a.sortId < b.sortId) {
@@ -3590,16 +3609,25 @@ export class SceneModel extends Component {
             layer.layerIndex = i;
         }
         this.glRedraw();
-        // @reviser lijuhong 注释scene相关代码
-        // this.scene._aabbDirty = true;
-        this._viewMatrixDirty = true;
-        this._matrixDirty = true;
-        this._aabbDirty = true;
+        this._layersFinalized = true;
+    }
 
-        this._setWorldMatrixDirty();
-        this._sceneModelDirty();
-
-        this.position = this._position;
+    /**
+     * Finalizes this SceneModel.
+     *
+     * Once finalized, you can't add anything more to this SceneModel.
+     */
+    finalize() {
+        if (this.destroyed) {
+            return;
+        }
+        this.preFinalize();
+        // @reivser lijuhong 注释掉释放_geometries代码
+        // this._geometries = {};
+        this._dtxBuckets = {};
+        // @reivser lijuhong 注释掉释放_textures、_textureSets代码
+        // this._textures = {};
+        // this._textureSets = {};
     }
 
     /** @private */
@@ -3637,7 +3665,7 @@ export class SceneModel extends Component {
     _createDummyEntityForUnusedMeshes() {
         const unusedMeshIds = Object.keys(this._unusedMeshes);
         if (unusedMeshIds.length > 0) {
-            const entityId = `${this.id}-dummyEntityForUnusedMeshes`;
+            const entityId = `${this.id}-${math.createUUID()}`;
             this.warn(`Creating dummy SceneModelEntity "${entityId}" for unused SceneMeshes: [${unusedMeshIds.join(",")}]`)
             this.createEntity({
                 id: entityId,
@@ -4012,6 +4040,7 @@ export class SceneModel extends Component {
         for (let i = 0, len = this._entityList.length; i < len; i++) {
             this._entityList[i]._destroy();
         }
+        this._layersToFinalize = {};
         // Object.entries(this._geometries).forEach(([id, geometry]) => {
         //     geometry.destroy();
         // });

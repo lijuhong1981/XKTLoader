@@ -5706,6 +5706,14 @@ const math = {
         return aabb[0] > p[0] || aabb[3] < p[0] || aabb[1] > p[1] || aabb[4] < p[1] || aabb[2] > p[2] || aabb[5] < p[2];
     },
 
+    point3AABB3AbsoluteIntersect(aabb, p) {
+        return (
+            aabb[0] <= p[0] && aabb[3] >= p[0] &&
+            aabb[1] <= p[1] && aabb[4] >= p[1] &&
+            aabb[2] <= p[2] && aabb[5] >= p[2]
+        );
+    },
+
     /**
      *
      * @param dir
@@ -7243,9 +7251,410 @@ var buildEdgeIndices = (function () {
     };
 })();
 
+math.vec3();
+math.vec3();
+math.mat4();
+
+const tempVec3a$1 = math.vec3();
+
+
+/**
+ * Converts a flat array of double-precision positions to RTC positions, if necessary.
+ *
+ * Conversion is necessary if the coordinates have values larger than can be expressed at single-precision. When
+ * that's the case, then this function will compute the RTC coordinates and RTC center and return true. Otherwise
+ * this function does nothing and returns false.
+ *
+ * When computing the RTC position, this function uses a modulus operation to ensure that, whenever possible,
+ * identical RTC centers are reused for different positions arrays.
+ *
+ * @private
+ * @param {Float64Array} worldPositions Flat array of World-space 3D positions.
+ * @param {Float64Array} rtcPositions Outputs the computed flat array of 3D RTC positions.
+ * @param {Float64Array} rtcCenter Outputs the computed double-precision relative-to-center (RTC) center pos.
+ * @param {Number} [cellSize=10000000] The size of each coordinate cell within the RTC coordinate system.
+ * @returns {Boolean} ````True```` if the positions actually needed conversion to RTC, else ````false````. When
+ * ````false````, we can safely ignore the data returned in ````rtcPositions```` and ````rtcCenter````,
+ * since ````rtcCenter```` will equal ````[0,0,0]````, and ````rtcPositions```` will contain identical values to ````positions````.
+ */
+function worldToRTCPositions(worldPositions, rtcPositions, rtcCenter, cellSize = 1000) {
+
+    const center = math.getPositionsCenter(worldPositions, tempVec3a$1);
+
+    const rtcCenterX = Math.round(center[0] / cellSize) * cellSize;
+    const rtcCenterY = Math.round(center[1] / cellSize) * cellSize;
+    const rtcCenterZ = Math.round(center[2] / cellSize) * cellSize;
+
+    rtcCenter[0] = rtcCenterX;
+    rtcCenter[1] = rtcCenterY;
+    rtcCenter[2] = rtcCenterZ;
+
+    const rtcNeeded = (rtcCenter[0] !== 0 || rtcCenter[1] !== 0 || rtcCenter[2] !== 0);
+
+    if (rtcNeeded) {
+        for (let i = 0, len = worldPositions.length; i < len; i += 3) {
+            rtcPositions[i + 0] = worldPositions[i + 0] - rtcCenterX;
+            rtcPositions[i + 1] = worldPositions[i + 1] - rtcCenterY;
+            rtcPositions[i + 2] = worldPositions[i + 2] - rtcCenterZ;
+        }
+    }
+
+    return rtcNeeded;
+}
+
+/**
+ * Uses edge adjacency counts to identify if the given triangle mesh can be rendered with backface culling enabled.
+ *
+ * If all edges are connected to exactly two triangles, then the mesh will likely be a closed solid, and we can safely
+ * render it with backface culling enabled.
+ *
+ * Otherwise, the mesh is a surface, and we must render it with backface culling disabled.
+ *
+ * @private
+ */
+const isTriangleMeshSolid = (indices, positions) => {
+
+    const vertexIndexMapping = [];
+    let edges = [];
+
+    function compareIndexPositions(a, b) {
+        let posA, posB;
+
+        for (let i = 0; i < 3; i++) {
+            posA = positions [a * 3 + i];
+            posB = positions [b * 3 + i];
+
+            if (posA !== posB) {
+                return posB - posA;
+            }
+        }
+
+        return 0;
+    }
+    // Group together indices corresponding to same position coordinates
+    let newIndices = indices.slice().sort(compareIndexPositions);
+
+    // Calculate the mapping:
+    // - from original index in indices array
+    // - to indices-for-unique-positions
+    let uniqueVertexIndex = null;
+
+    for (let i = 0, len = newIndices.length; i < len; i++) {
+        if (i === 0 || 0 !== compareIndexPositions(
+            newIndices[i],
+            newIndices[i - 1],
+        )) {
+            // different position
+            uniqueVertexIndex = newIndices [i];
+        }
+
+        vertexIndexMapping [
+            newIndices[i]
+            ] = uniqueVertexIndex;
+    }
+
+    // Generate the list of edges
+    for (let i = 0, len = indices.length; i < len; i += 3) {
+
+        const a = vertexIndexMapping[indices[i]];
+        const b = vertexIndexMapping[indices[i + 1]];
+        const c = vertexIndexMapping[indices[i + 2]];
+
+        let a2 = a;
+        let b2 = b;
+        let c2 = c;
+
+        if (a > b && a > c) {
+            if (b > c) {
+                a2 = a;
+                b2 = b;
+                c2 = c;
+            } else {
+                a2 = a;
+                b2 = c;
+                c2 = b;
+            }
+        } else if (b > a && b > c) {
+            if (a > c) {
+                a2 = b;
+                b2 = a;
+                c2 = c;
+            } else {
+                a2 = b;
+                b2 = c;
+                c2 = a;
+            }
+        } else if (c > a && c > b) {
+            if (a > b) {
+                a2 = c;
+                b2 = a;
+                c2 = b;
+            } else {
+                a2 = c;
+                b2 = b;
+                c2 = a;
+            }
+        }
+
+        edges[i + 0] = [
+            a2, b2
+        ];
+        edges[i + 1] = [
+            b2, c2
+        ];
+
+        if (a2 > c2) {
+            const temp = c2;
+            c2 = a2;
+            a2 = temp;
+        }
+
+        edges[i + 2] = [
+            c2, a2
+        ];
+    }
+
+    // Group semantically equivalent edgdes together
+    function compareEdges(e1, e2) {
+        let a, b;
+
+        for (let i = 0; i < 2; i++) {
+            a = e1[i];
+            b = e2[i];
+
+            if (b !== a) {
+                return b - a;
+            }
+        }
+
+        return 0;
+    }
+
+    edges = edges.slice(0, indices.length);
+
+    edges.sort(compareEdges);
+
+    // Make sure each edge is used exactly twice
+    let sameEdgeCount = 0;
+
+    for (let i = 0; i < edges.length; i++) {
+        if (i === 0 || 0 !== compareEdges(
+            edges[i], edges[i - 1]
+        )) {
+            // different edge
+            if (0 !== i && sameEdgeCount !== 2) {
+                return false;
+            }
+
+            sameEdgeCount = 1;
+        } else {
+            // same edge
+            sameEdgeCount++;
+        }
+    }
+
+    if (edges.length > 0 && sameEdgeCount !== 2) {
+        return false;
+    }
+
+    // Each edge is used exactly twice, this is a
+    // watertight surface and hence a solid geometry.
+    return true;
+};
+
+const v1$1 = math.vec3();
+const v2$1 = math.vec3();
+const v3$1 = math.vec3();
+
+/**
+ * Calculates the volume of triangle meshes.
+ */
+class MeshVolume {
+    constructor() {
+        this.vertices = [];
+        this.indices = [];
+        this.reset();
+    }
+
+    /**
+     * Resets, ready to add vertices and indices for a new mesh.
+     */
+    reset() {
+        this.lenVertices = 0;
+        this.lenIndices = 0;
+        this.primitive = null;
+    }
+
+    setPrimitive(primitive) {
+        this.primitive = primitive;
+    }
+
+    /**
+     * Adds a vertex.
+     * @param vertex
+     */
+    addVertex(vertex) {
+        this.vertices[this.lenVertices++] = vertex[0];
+        this.vertices[this.lenVertices++] = vertex[1];
+        this.vertices[this.lenVertices++] = vertex[2];
+    }
+
+    /**
+     * Adds an index.
+     * @param index
+     */
+    addIndex(index) {
+        this.indices[this.lenIndices++] = index;
+    }
+
+    /**
+     * Gets the volume of the mesh.
+     *
+     * The mesh must be a closed solid.
+     *
+     * @returns {number} The volume of the mesh, or -1 if the mesh is not solid, in which case volume cannot be determined.
+     */
+    get volume() {
+
+        const vertices = this.vertices;
+        const indices = this.indices;
+
+        if (this.primitive !== "solid" && this.primitive !== "surface" && this.primitive !== "triangles") {
+            return -1;
+        }
+
+        if (this.primitive !== "solid" && !isTriangleMeshSolid(indices, vertices)) {
+            return -1;
+        }
+
+        let volume = 0;
+
+        for (let i = 0; i < this.lenIndices; i += 3) {
+
+            const index1 = indices[i] * 3;
+            const index2 = indices[i + 1] * 3;
+            const index3 = indices[i + 2] * 3;
+
+            v1$1[0] = vertices[index1];
+            v1$1[1] = vertices[index1 + 1];
+            v1$1[2] = vertices[index1 + 2];
+
+            v2$1[0] = vertices[index2];
+            v2$1[1] = vertices[index2 + 1];
+            v2$1[2] = vertices[index2 + 2];
+
+            v3$1[0] = vertices[index3];
+            v3$1[1] = vertices[index3 + 1];
+            v3$1[2] = vertices[index3 + 2];
+
+            math.cross3Vec3(v1$1, v2$1, v1$1);
+
+            volume += math.dotVec3(v1$1, v3$1);
+        }
+
+        return volume;
+    }
+}
+
+/**
+ * Singleton instance of {@link MeshVolume}.
+ * @type {MeshVolume}
+ */
+const meshVolume = new MeshVolume();
+
+const v1 = math.vec3();
+const v2 = math.vec3();
+const v3 = math.vec3();
+const v4 = math.vec3();
+const v5 = math.vec3();
+const v6 = math.vec3();
+
+/**
+ * Calculates the surface area of triangle meshes.
+ */
+class MeshSurfaceArea {
+    constructor() {
+        this.vertices = [];
+        this.indices = [];
+        this.reset();
+    }
+
+    /**
+     * Resets, ready to add vertices and indices for a new mesh.
+     */
+    reset() {
+        this.lenVertices = 0;
+        this.lenIndices = 0;
+    }
+
+    /**
+     * Adds a vertex.
+     * @param vertex
+     */
+    addVertex(vertex) {
+        this.vertices[this.lenVertices++] = vertex[0];
+        this.vertices[this.lenVertices++] = vertex[1];
+        this.vertices[this.lenVertices++] = vertex[2];
+    }
+
+    /**
+     * Adds an index.
+     * @param index
+     */
+    addIndex(index) {
+        this.indices[this.lenIndices++] = index;
+    }
+
+    /**
+     * Gets the surface area of the mesh.
+     *
+     * @returns {number}
+     */
+    get surfaceArea() {
+
+        const vertices = this.vertices;
+        const indices = this.indices;
+
+        let surfaceArea = 0;
+
+        for (let i = 0; i < this.lenIndices; i += 3) {
+
+            const index1 = indices[i] * 3;
+            const index2 = indices[i + 1] * 3;
+            const index3 = indices[i + 2] * 3;
+
+            v1[0] = vertices[index1];
+            v1[1] = vertices[index1 + 1];
+            v1[2] = vertices[index1 + 2];
+
+            v2[0] = vertices[index2];
+            v2[1] = vertices[index2 + 1];
+            v2[2] = vertices[index2 + 2];
+
+            v3[0] = vertices[index3];
+            v3[1] = vertices[index3 + 1];
+            v3[2] = vertices[index3 + 2];
+
+            math.subVec3(v1, v2, v4);
+            math.subVec3(v3, v2, v5);
+
+            surfaceArea += math.lenVec3(math.cross3Vec3(v4, v5, v6)) * 0.5;
+        }
+
+        return surfaceArea;
+    }
+}
+
+/**
+ * Singleton instance of {@link MeshSurfaceArea}.
+ * @type {MeshSurfaceArea}
+ */
+const meshSurfaceArea = new MeshSurfaceArea();
+
 const tempOBB3$1 = math.OBB3();
 const tempOBB3b = math.OBB3();
 const tempOBB3c = math.OBB3();
+
 
 /**
  * A mesh within a {@link SceneModel}.
@@ -7360,6 +7769,9 @@ class SceneModelMesh {
         if (transform) {
             transform._addMesh(this);
         }
+
+        this._volume = null;
+        this._surfaceArea = null;
     }
 
     _sceneModelDirty() {
@@ -7557,7 +7969,76 @@ class SceneModelMesh {
      */
     getEachVertex(callback) {
         // @reviser lijuhong 注释layer相关代码
-        // this.layer.getEachVertex(this.portionId, callback);
+        // if (this.layer.getEachVertex) {
+        //     this.layer.getEachVertex(this.portionId, callback);
+        // }
+    }
+
+    /**
+     * @private
+     */
+    getEachIndex(callback) {
+        // @reviser lijuhong 注释layer相关代码
+        // if (this.layer.getEachIndex ) {
+        //     this.layer.getEachIndex(this.portionId, callback);
+        // }
+    }
+
+    /**
+     * Returns the volume of this SceneModelMesh.
+     * @returns {number}
+     */
+    get volume() {
+        if (this._volume !== null) {
+            return this._volume;
+        }
+        switch (this.layer.primitive) {
+            case "solid":
+            case "surface":
+            case "triangles":
+                meshVolume.reset();
+                meshVolume.setPrimitive(this.layer.primitive);
+                this.getEachVertex((vertex) =>{
+                    meshVolume.addVertex(vertex);
+                });
+                this.getEachIndex((index)=>{
+                   meshVolume.addIndex(index);
+                });
+                this._volume = meshVolume.volume;
+                break;
+            default:
+                this._volume = 0;
+                break;
+        }
+        return this._volume;
+    }
+
+    /**
+     * Returns the surface area of this SceneModelMesh.
+     * @returns {number}
+     */
+    get surfaceArea() {
+        if (this._surfaceArea !== null) {
+            return this._surfaceArea;
+        }
+        switch (this.layer.primitive) {
+            case "solid":
+            case "surface":
+            case "triangles":
+                meshSurfaceArea.reset();
+                this.getEachVertex((vertex) =>{
+                    meshSurfaceArea.addVertex(vertex);
+                });
+                this.getEachIndex((index)=>{
+                    meshSurfaceArea.addIndex(index);
+                });
+                this._surfaceArea = meshSurfaceArea.surfaceArea;
+                break;
+            default:
+                this._surfaceArea = 0;
+                break;
+        }
+        return this._surfaceArea;
     }
 
     /**
@@ -7885,53 +8366,6 @@ class RenderFlags {
          */
         this.selectedEdgesTransparent = false;
     }
-}
-
-const tempVec3a$1 = math.vec3();
-
-
-/**
- * Converts a flat array of double-precision positions to RTC positions, if necessary.
- *
- * Conversion is necessary if the coordinates have values larger than can be expressed at single-precision. When
- * that's the case, then this function will compute the RTC coordinates and RTC center and return true. Otherwise
- * this function does nothing and returns false.
- *
- * When computing the RTC position, this function uses a modulus operation to ensure that, whenever possible,
- * identical RTC centers are reused for different positions arrays.
- *
- * @private
- * @param {Float64Array} worldPositions Flat array of World-space 3D positions.
- * @param {Float64Array} rtcPositions Outputs the computed flat array of 3D RTC positions.
- * @param {Float64Array} rtcCenter Outputs the computed double-precision relative-to-center (RTC) center pos.
- * @param {Number} [cellSize=10000000] The size of each coordinate cell within the RTC coordinate system.
- * @returns {Boolean} ````True```` if the positions actually needed conversion to RTC, else ````false````. When
- * ````false````, we can safely ignore the data returned in ````rtcPositions```` and ````rtcCenter````,
- * since ````rtcCenter```` will equal ````[0,0,0]````, and ````rtcPositions```` will contain identical values to ````positions````.
- */
-function worldToRTCPositions(worldPositions, rtcPositions, rtcCenter, cellSize = 1000) {
-
-    const center = math.getPositionsCenter(worldPositions, tempVec3a$1);
-
-    const rtcCenterX = Math.round(center[0] / cellSize) * cellSize;
-    const rtcCenterY = Math.round(center[1] / cellSize) * cellSize;
-    const rtcCenterZ = Math.round(center[2] / cellSize) * cellSize;
-
-    rtcCenter[0] = rtcCenterX;
-    rtcCenter[1] = rtcCenterY;
-    rtcCenter[2] = rtcCenterZ;
-
-    const rtcNeeded = (rtcCenter[0] !== 0 || rtcCenter[1] !== 0 || rtcCenter[2] !== 0);
-
-    if (rtcNeeded) {
-        for (let i = 0, len = worldPositions.length; i < len; i += 3) {
-            rtcPositions[i + 0] = worldPositions[i + 0] - rtcCenterX;
-            rtcPositions[i + 1] = worldPositions[i + 1] - rtcCenterY;
-            rtcPositions[i + 2] = worldPositions[i + 2] - rtcCenterZ;
-        }
-    }
-
-    return rtcNeeded;
 }
 
 /**
@@ -9212,7 +9646,7 @@ class SceneModelEntity {
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._setOffset(this._offset);
         }
-        this._aabbDirty  = true;
+        this._aabbDirty = true;
         this.model._aabbDirty = true;
         // @reviser lijuhong 注释scene相关代码
         // this.scene._aabbDirty = true;
@@ -9228,6 +9662,51 @@ class SceneModelEntity {
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i].getEachVertex(callback);
         }
+    }
+
+    getEachIndex(callback) {
+        for (let i = 0, len = this.meshes.length; i < len; i++) {
+            this.meshes[i].getEachIndex(callback);
+        }
+    }
+
+    /**
+     * Returns the volume of this SceneModelEntity.
+     *
+     * Only works when {@link Scene.readableGeometryEnabled | Scene.readableGeometryEnabled} is `true` and the
+     * SceneModelEntity contains solid triangle meshes; returns `0` otherwise.
+     *
+     * @returns {number}
+     */
+    get volume() {
+        let volume = 0;
+        for (let i = 0, len = this.meshes.length; i < len; i++) {
+            const meshVolume = this.meshes[i].volume;
+            if (meshVolume < 0) {
+                return -1;
+            }
+            volume += meshVolume;
+        }
+        return volume;
+    }
+
+    /**
+     * Returns the surface area of this SceneModelEntity.
+     *
+     * Only works when {@link Scene.readableGeometryEnabled | Scene.readableGeometryEnabled} is `true` and the
+     * SceneModelEntity contains triangle meshes; returns `0` otherwise.
+     *
+     * @returns {number}
+     */
+    get surfaceArea() {
+        let surfaceArea = 0;
+        for (let i = 0, len = this.meshes.length; i < len; i++) {
+            const meshSurfaceArea = this.meshes[i].surfaceArea;
+            if (meshSurfaceArea >= 0) {
+                surfaceArea += meshSurfaceArea;
+            }
+        }
+        return surfaceArea > 0 ? surfaceArea : -1;
     }
 
     _getFlag(flag) {
@@ -9660,10 +10139,6 @@ const geometryCompressionUtils = {
     decompressNormal: decompressNormal
 };
 
-math.vec3();
-math.vec3();
-math.mat4();
-
 const angleAxis = math.vec4(4);
 const q1 = math.vec4();
 const q2 = math.vec4();
@@ -10082,8 +10557,6 @@ const DEFAULT_METAL_ROUGH_TEXTURE_ID = "defaultMetalRoughTexture";
 const DEFAULT_NORMALS_TEXTURE_ID = "defaultNormalsTexture";
 const DEFAULT_EMISSIVE_TEXTURE_ID = "defaultEmissiveTexture";
 const DEFAULT_OCCLUSION_TEXTURE_ID = "defaultOcclusionTexture";
-
-const defaultCompressedColor = new Uint8Array([255, 255, 255]);
 
 const VBO_INSTANCED = 0;
 const VBO_BATCHED = 1;
@@ -11183,7 +11656,10 @@ class SceneModel extends Component {
         this._meshList = [];
 
         this.layerList = []; // For GL state efficiency when drawing, InstancingLayers are in first part, BatchingLayers are in second
+        this._layersToFinalize = [];
+
         this._entityList = [];
+        this._entitiesToFinalize = [];
 
         this._geometries = {};
         this._dtxBuckets = {}; // Geometries with optimizations used for data texture representation
@@ -11259,6 +11735,7 @@ class SceneModel extends Component {
         this._numTriangles = 0;
         this._numLines = 0;
         this._numPoints = 0;
+        this._layersFinalized = false;
 
         this._edgeThreshold = cfg.edgeThreshold || 10;
 
@@ -12883,8 +13360,9 @@ class SceneModel extends Component {
 
                 // NPR
 
-                cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
-                cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
+                // @reviser lijuhong 移除转换，保留Float值，范围0.0~1.0
+                // cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
+                // cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
 
                 // RTC
 
@@ -12960,10 +13438,11 @@ class SceneModel extends Component {
 
                 // PBR
 
-                cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : [255, 255, 255];
-                cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
-                cfg.metallic = (cfg.metallic !== undefined && cfg.metallic !== null) ? Math.floor(cfg.metallic * 255) : 0;
-                cfg.roughness = (cfg.roughness !== undefined && cfg.roughness !== null) ? Math.floor(cfg.roughness * 255) : 255;
+                // @reviser lijuhong 移除转换，保留Float值，范围0.0~1.0
+                // cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : [255, 255, 255];
+                // cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
+                // cfg.metallic = (cfg.metallic !== undefined && cfg.metallic !== null) ? Math.floor(cfg.metallic * 255) : 0;
+                // cfg.roughness = (cfg.roughness !== undefined && cfg.roughness !== null) ? Math.floor(cfg.roughness * 255) : 255;
 
                 // RTC
 
@@ -13101,8 +13580,9 @@ class SceneModel extends Component {
 
                 // NPR
 
-                cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
-                cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
+                // @reviser lijuhong 移除转换，保留Float值，范围0.0~1.0
+                // cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
+                // cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
 
                 // BUCKETING - lazy generated, reused
 
@@ -13121,10 +13601,11 @@ class SceneModel extends Component {
 
                 // PBR
 
-                cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
-                cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
-                cfg.metallic = (cfg.metallic !== undefined && cfg.metallic !== null) ? Math.floor(cfg.metallic * 255) : 0;
-                cfg.roughness = (cfg.roughness !== undefined && cfg.roughness !== null) ? Math.floor(cfg.roughness * 255) : 255;
+                // @reviser lijuhong 移除转换，保留Float值，范围0.0~1.0
+                // cfg.color = (cfg.color) ? new Uint8Array([Math.floor(cfg.color[0] * 255), Math.floor(cfg.color[1] * 255), Math.floor(cfg.color[2] * 255)]) : defaultCompressedColor;
+                // cfg.opacity = (cfg.opacity !== undefined && cfg.opacity !== null) ? Math.floor(cfg.opacity * 255) : 255;
+                // cfg.metallic = (cfg.metallic !== undefined && cfg.metallic !== null) ? Math.floor(cfg.metallic * 255) : 0;
+                // cfg.roughness = (cfg.roughness !== undefined && cfg.roughness !== null) ? Math.floor(cfg.roughness * 255) : 255;
 
                 // TEXTURE
 
@@ -13269,6 +13750,7 @@ class SceneModel extends Component {
         }
         this._dtxLayers[layerId] = dtxLayer;
         this.layerList.push(dtxLayer);
+        this._layersToFinalize.push(dtxLayer);
         return dtxLayer;
     }
 
@@ -13369,6 +13851,7 @@ class SceneModel extends Component {
         }
         this._vboBatchingLayers[layerId] = vboBatchingLayer;
         this.layerList.push(vboBatchingLayer);
+        this._layersToFinalize.push(vboBatchingLayer);
         return vboBatchingLayer;
     } */
 
@@ -13462,6 +13945,7 @@ class SceneModel extends Component {
         }
         this._vboInstancingLayers[layerId] = vboInstancingLayer;
         this.layerList.push(vboInstancingLayer);
+        this._layersToFinalize.push(vboInstancingLayer);
         return vboInstancingLayer;
     } */
 
@@ -13564,40 +14048,48 @@ class SceneModel extends Component {
             lodCullable); // Internally sets SceneModelEntity#parent to this SceneModel
         this._entityList.push(entity);
         this._entities[cfg.id] = entity;
+        this._entitiesToFinalize.push(entity);
         this.numEntities++;
     }
 
     /**
-     * Finalizes this SceneModel.
-     *
-     * Once finalized, you can't add anything more to this SceneModel.
+     * Pre-renders all meshes that have been added, even if the SceneModel has not bee finalized yet.
+     * This is use for progressively showing the SceneModel while it is being loaded or constructed.
+     * @returns {boolean}
      */
-    finalize() {
+    preFinalize() {
         if (this.destroyed) {
-            return;
+            return false;
+        }
+        if (this._layersToFinalize.length === 0) {
+            return false;
         }
         this._createDummyEntityForUnusedMeshes();
-        for (let i = 0, len = this.layerList.length; i < len; i++) {
-            const layer = this.layerList[i];
+        for (let i = 0, len = this._layersToFinalize.length; i < len; i++) {
+            const layer = this._layersToFinalize[i];
             layer.finalize();
         }
-        // @reivser lijuhong 注释掉释放_geometries代码
-        // this._geometries = {};
-        this._dtxBuckets = {};
-        // @reivser lijuhong 注释掉释放_textures、_textureSets代码
-        // this._textures = {};
-        // this._textureSets = {};
-        this._dtxLayers = {};
-        this._vboInstancingLayers = {};
         this._vboBatchingLayers = {};
-        for (let i = 0, len = this._entityList.length; i < len; i++) {
-            const entity = this._entityList[i];
+        this._vboInstancingLayers = {};
+        this._dtxLayers = {};
+        this._layersToFinalize = [];
+        for (let i = 0, len = this._entitiesToFinalize.length; i < len; i++) {
+            const entity = this._entitiesToFinalize[i];
             entity._finalize();
         }
-        for (let i = 0, len = this._entityList.length; i < len; i++) {
-            const entity = this._entityList[i];
+        for (let i = 0, len = this._entitiesToFinalize.length; i < len; i++) {
+            const entity = this._entitiesToFinalize[i];
             entity._finalize2();
         }
+        this._entitiesToFinalize = [];
+        // @reviser lijuhong 注释scene相关代码
+        // this.scene._aabbDirty = true;
+        this._viewMatrixDirty = true;
+        this._matrixDirty = true;
+        this._aabbDirty = true;
+        this._setWorldMatrixDirty();
+        this._sceneModelDirty();
+        this.position = this._position;
         // Sort layers to reduce WebGL shader switching when rendering them
         this.layerList.sort((a, b) => {
             if (a.sortId < b.sortId) {
@@ -13613,16 +14105,25 @@ class SceneModel extends Component {
             layer.layerIndex = i;
         }
         this.glRedraw();
-        // @reviser lijuhong 注释scene相关代码
-        // this.scene._aabbDirty = true;
-        this._viewMatrixDirty = true;
-        this._matrixDirty = true;
-        this._aabbDirty = true;
+        this._layersFinalized = true;
+    }
 
-        this._setWorldMatrixDirty();
-        this._sceneModelDirty();
-
-        this.position = this._position;
+    /**
+     * Finalizes this SceneModel.
+     *
+     * Once finalized, you can't add anything more to this SceneModel.
+     */
+    finalize() {
+        if (this.destroyed) {
+            return;
+        }
+        this.preFinalize();
+        // @reivser lijuhong 注释掉释放_geometries代码
+        // this._geometries = {};
+        this._dtxBuckets = {};
+        // @reivser lijuhong 注释掉释放_textures、_textureSets代码
+        // this._textures = {};
+        // this._textureSets = {};
     }
 
     /** @private */
@@ -13660,7 +14161,7 @@ class SceneModel extends Component {
     _createDummyEntityForUnusedMeshes() {
         const unusedMeshIds = Object.keys(this._unusedMeshes);
         if (unusedMeshIds.length > 0) {
-            const entityId = `${this.id}-dummyEntityForUnusedMeshes`;
+            const entityId = `${this.id}-${math.createUUID()}`;
             this.warn(`Creating dummy SceneModelEntity "${entityId}" for unused SceneMeshes: [${unusedMeshIds.join(",")}]`);
             this.createEntity({
                 id: entityId,
@@ -14035,6 +14536,7 @@ class SceneModel extends Component {
         for (let i = 0, len = this._entityList.length; i < len; i++) {
             this._entityList[i]._destroy();
         }
+        this._layersToFinalize = {};
         // Object.entries(this._geometries).forEach(([id, geometry]) => {
         //     geometry.destroy();
         // });
@@ -19810,6 +20312,9 @@ class XKTLoaderPlugin extends Plugin {
         // this.viewer.scene.canvas.spinner.processes++;
 
         const finish = () => {
+            if (sceneModel.destroyed) {
+                return;
+            }
             // this._createDefaultMetaModelIfNeeded(sceneModel, params, options);
             sceneModel.finalize();
             metaModel.finalize();
@@ -19838,7 +20343,7 @@ class XKTLoaderPlugin extends Plugin {
             // this.viewer.scene.canvas.spinner.processes--;
             this.error(errMsg);
             sceneModel.fire("error", errMsg);
-            // @reviser lijuhong 触发onLoad回调
+            // @reviser lijuhong 触发onError回调
             if (typeof onError === 'function')
                 onError(errMsg);
         };
@@ -19902,7 +20407,9 @@ class XKTLoaderPlugin extends Plugin {
                 const loadJSONs = (metaDataFiles, done, error) => {
                     let i = 0;
                     const loadNext = () => {
-                        if (i >= metaDataFiles.length) {
+                        if (sceneModel.destroyed) {
+                            done();
+                        } else if (i >= metaDataFiles.length) {
                             done();
                         } else {
                             this._dataSource.getMetaModel(`${baseDir}${metaDataFiles[i]}`, (metaModelData) => {
@@ -19912,7 +20419,7 @@ class XKTLoaderPlugin extends Plugin {
                                     globalizeObjectIds: options.globalizeObjectIds
                                 });
                                 i++;
-                                this.scheduleTask(loadNext, 100);
+                                this.scheduleTask(loadNext, 200);
                             }, error);
                         }
                     };
@@ -19921,13 +20428,16 @@ class XKTLoaderPlugin extends Plugin {
                 const loadXKTs_excludeTheirMetaModels = (xktFiles, done, error) => { // Load XKTs, ignore metamodels in the XKT
                     let i = 0;
                     const loadNext = () => {
-                        if (i >= xktFiles.length) {
+                        if (sceneModel.destroyed) {
+                            done();
+                        } else if (i >= xktFiles.length) {
                             done();
                         } else {
                             this._dataSource.getXKT(`${baseDir}${xktFiles[i]}`, (arrayBuffer) => {
                                 this._parseModel(arrayBuffer, params, options, sceneModel, null /* Ignore metamodel in XKT */, manifestCtx);
+                                sceneModel.preFinalize();
                                 i++;
-                                this.scheduleTask(loadNext, 100);
+                                this.scheduleTask(loadNext, 200);
                             }, error);
                         }
                     };
@@ -19936,13 +20446,16 @@ class XKTLoaderPlugin extends Plugin {
                 const loadXKTs_includeTheirMetaModels = (xktFiles, done, error) => { // Load XKTs, parse metamodels from the XKT
                     let i = 0;
                     const loadNext = () => {
-                        if (i >= xktFiles.length) {
+                        if (sceneModel.destroyed) {
+                            done();
+                        } else if (i >= xktFiles.length) {
                             done();
                         } else {
                             this._dataSource.getXKT(`${baseDir}${xktFiles[i]}`, (arrayBuffer) => {
                                 this._parseModel(arrayBuffer, params, options, sceneModel, metaModel, manifestCtx);
+                                sceneModel.preFinalize();
                                 i++;
-                                this.scheduleTask(loadNext, 100);
+                                this.scheduleTask(loadNext, 200);
                             }, error);
                         }
                     };
@@ -19992,11 +20505,12 @@ class XKTLoaderPlugin extends Plugin {
     _loadModel(src, params, options, sceneModel, metaModel, manifestCtx, done, error) {
         this._dataSource.getXKT(params.src, (arrayBuffer) => {
             this._parseModel(arrayBuffer, params, options, sceneModel, metaModel, manifestCtx);
+            sceneModel.preFinalize();
             done();
         }, error);
     }
 
-    _parseModel(arrayBuffer, params, options, sceneModel, metaModel, manifestCtx) {
+    async _parseModel(arrayBuffer, params, options, sceneModel, metaModel, manifestCtx) {
         if (sceneModel.destroyed) {
             return;
         }
@@ -20008,7 +20522,7 @@ class XKTLoaderPlugin extends Plugin {
             this.error("Unsupported .XKT file version: " + xktVersion + " - this XKTLoaderPlugin supports versions " + Object.keys(parsers));
             return;
         }
-        this.log("Loading .xkt V" + xktVersion);
+        //   this.log("Loading .xkt V" + xktVersion);
         const numElements = dataView.getUint32(4, true);
         const elements = [];
         let byteOffset = (numElements + 2) * 4;

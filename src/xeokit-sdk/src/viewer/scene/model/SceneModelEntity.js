@@ -641,7 +641,7 @@ export class SceneModelEntity {
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i]._setOffset(this._offset);
         }
-        this._aabbDirty  = true;
+        this._aabbDirty = true;
         this.model._aabbDirty = true;
         // @reviser lijuhong 注释scene相关代码
         // this.scene._aabbDirty = true;
@@ -657,6 +657,51 @@ export class SceneModelEntity {
         for (let i = 0, len = this.meshes.length; i < len; i++) {
             this.meshes[i].getEachVertex(callback)
         }
+    }
+
+    getEachIndex(callback) {
+        for (let i = 0, len = this.meshes.length; i < len; i++) {
+            this.meshes[i].getEachIndex(callback)
+        }
+    }
+
+    /**
+     * Returns the volume of this SceneModelEntity.
+     *
+     * Only works when {@link Scene.readableGeometryEnabled | Scene.readableGeometryEnabled} is `true` and the
+     * SceneModelEntity contains solid triangle meshes; returns `0` otherwise.
+     *
+     * @returns {number}
+     */
+    get volume() {
+        let volume = 0;
+        for (let i = 0, len = this.meshes.length; i < len; i++) {
+            const meshVolume = this.meshes[i].volume;
+            if (meshVolume < 0) {
+                return -1;
+            }
+            volume += meshVolume;
+        }
+        return volume;
+    }
+
+    /**
+     * Returns the surface area of this SceneModelEntity.
+     *
+     * Only works when {@link Scene.readableGeometryEnabled | Scene.readableGeometryEnabled} is `true` and the
+     * SceneModelEntity contains triangle meshes; returns `0` otherwise.
+     *
+     * @returns {number}
+     */
+    get surfaceArea() {
+        let surfaceArea = 0;
+        for (let i = 0, len = this.meshes.length; i < len; i++) {
+            const meshSurfaceArea = this.meshes[i].surfaceArea;
+            if (meshSurfaceArea >= 0) {
+                surfaceArea += meshSurfaceArea;
+            }
+        }
+        return surfaceArea > 0 ? surfaceArea : -1;
     }
 
     _getFlag(flag) {
